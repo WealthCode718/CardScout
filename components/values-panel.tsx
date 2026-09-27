@@ -25,7 +25,7 @@ export function ValuesPanel({ values }: { values: ValueResponse }) {
       </div>
 
       <SourceNote
-        tone={values.fallback ? "warn" : "calm"}
+        tone={values.fallback || !values.provider.live ? "warn" : "calm"}
         title={
           values.fallback
             ? "Live prices did not load. These are practice numbers until the live call works."
@@ -43,8 +43,12 @@ export function ValuesPanel({ values }: { values: ValueResponse }) {
 
       {values.cards.length === 0 ? (
         <div className="rounded-2xl bg-panel px-4 py-8 text-center">
-          <p className="font-medium text-paper">No card found</p>
-          <p className="mt-1 text-sm text-muted">Try a shorter name, like Pikachu, or leave the set blank.</p>
+          <p className="font-medium text-paper">{values.provider.live || values.fallback ? "No card found" : "Scrydex is not configured"}</p>
+          <p className="mt-1 text-sm text-muted">
+            {values.provider.live || values.fallback
+              ? "Try a shorter name, like Pikachu, or leave the set blank."
+              : "Add SCRYDEX_API_KEY and SCRYDEX_TEAM_ID. No market prices are invented."}
+          </p>
         </div>
       ) : (
         <ul className="space-y-2.5">

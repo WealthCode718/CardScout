@@ -1,9 +1,9 @@
 import https from "node:https";
 
 /**
- * The Pokémon TCG API returns 500 to Node's global fetch (undici) from this
- * host, and answers node:https. Live price calls go through here so a working
- * source is not reported as a failure.
+ * Some price hosts answer node:https and fail Node's global fetch from this
+ * environment. Live price calls go through here so a working source is not
+ * reported as a failure.
  */
 function headerRecord(headers?: HeadersInit): Record<string, string> {
   const record: Record<string, string> = {

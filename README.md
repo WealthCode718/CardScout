@@ -2,7 +2,7 @@
 
 CardScout is a phone-friendly helper for a parent and a kid who trade Pokémon cards. It has three jobs:
 
-1. **Deals** — show cards whose asking price is below the TCGPlayer market price.
+1. **Deals** — show cards whose lowest known price is below the Scrydex market price.
 2. **Values** — look up a card. Live boxes are the TCGPlayer market and eBay sold. The graded PriceCharting slot stays on screen and says coming soon until a token is added.
 3. **News** — list recent Pokémon TCG stories, with a link to the original article.
 
@@ -32,7 +32,7 @@ Each row is one printing (name, set, and collector number) with:
 - the **discount** (percent and dollars saved)
 - the condition and who is asking
 
-The market baseline is the TCGPlayer market price for a raw English copy. That figure averages recent sales. The asking price next to it is the lowest TCGPlayer list price for that finish. eBay Buy It Now asking prices are not used.
+The market baseline is the Scrydex Near Mint market for a raw English copy. That figure is a USD average from US sources, so a spike can lag. The price next to it is Scrydex's lowest known price for that finish. eBay Buy It Now asking prices are not used.
 
 The list starts with the **biggest percent off**. Switch to **Most saved** if you care more about dollars than percent. A 35% discount on a $11 Pikachu is a different decision from 25% off a $980 Umbreon.
 
@@ -40,7 +40,7 @@ Filter with the name box or the set chips (151, Prismatic Evolutions, Base, and 
 
 Those made-up shops, such as “Lakeside Cards,” appear only if the live price call fails. The screen then says **Practice fallback**. They are not places you can buy from.
 
-If TCGPlayer has no market price for a printing, that printing is left off Deals. CardScout does not fill the gap with an asking price.
+If Scrydex has no Near Mint market price for a printing, that printing is left off Deals. CardScout does not fill the gap with an asking price.
 
 ### Values
 
@@ -48,11 +48,11 @@ Search a card name. Add a set if you know it.
 
 You will often see several rows for one name. A common Pikachu and a special illustration rare Pikachu are not the same card. Read the set and the number (`238/191`, for example) before you trade.
 
-The corner badge says **Live prices on** when the live call worked. The big number is the TCGPlayer market price for a raw English copy. Under it, every card has the same three boxes:
+The corner badge says **Live prices on** when the live call worked. The big number is the Scrydex Near Mint market for a raw English copy. Under it, every card has the same three boxes:
 
 | Box | Best for | Keep in mind |
 | --- | --- | --- |
-| **TCGPlayer market (via Pokémon TCG API)** | Raw (ungraded) English singles | It averages recent sales, so a sudden spike can take a while to show up. |
+| **Scrydex market** | Raw (ungraded) English singles | Near Mint USD average from US sources. It is not a TCGPlayer-only market field. A TCGPlayer link shows up when Scrydex lists that marketplace. A spike can lag. |
 | **PriceCharting** | Graded slabs (PSA, BGS). Coming soon. | The slot stays. Until `PRICECHARTING_TOKEN` is set, the chip says **Coming soon** and the box says it is not configured. No graded prices are invented. |
 | **eBay Sold & Completed** | What buyers actually paid, raw or graded | A single auction can jump when people bid against each other. |
 
@@ -72,17 +72,17 @@ Card names and pictures are there so you can tell printings apart. CardScout is 
 
 | Source | What you get | Key |
 | --- | --- | --- |
-| TCGPlayer market | Raw English single. The `market` field is an average of recent sales, so a spike can lag. | `POKEMONTCG_API_KEY` on Vercel. The Pokémon TCG API can answer without a key, but production should set one. |
+| Scrydex market | Raw English Near Mint price. The `market` field averages US sources, so a spike can lag. | Paid plan. `SCRYDEX_API_KEY` and `SCRYDEX_TEAM_ID`. |
 | eBay sold | Completed sales from about the last 90 days: median, count, raw vs graded. | `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`, plus Marketplace Insights access. |
 | PriceCharting (deferred) | Graded slot stays in the UI. Live grades load only after a token is added. | `PRICECHARTING_TOKEN` later. Until then the box says coming soon / not configured. |
 
 eBay Buy It Now asks are not sold prices and are not the Deals baseline. PriceCharting’s API, when a token is added later, returns current grades only. CardScout links to the history chart and does not draw a fake one.
 
-If the card list itself fails, the screen switches to practice numbers and says so. A missing eBay key does not replace the TCGPlayer box. The graded box stays coming soon until its token exists.
+If Scrydex keys are missing, the screen says **Not configured** and does not invent a market price. If a configured Scrydex call fails, the screen switches to practice numbers and says so. A missing eBay key does not replace the Scrydex box. The graded box stays coming soon until its token exists.
 
 ## Turn on live prices
 
-On Vercel, live mode is the raw TCGPlayer market plus eBay sold. Set `POKEMONTCG_API_KEY`, `EBAY_CLIENT_ID`, and `EBAY_CLIENT_SECRET`. Leave `PRICECHARTING_TOKEN` blank. Restart or redeploy after any env change.
+On Vercel, live mode is the Scrydex raw market plus eBay sold. Set `SCRYDEX_API_KEY`, `SCRYDEX_TEAM_ID`, `EBAY_CLIENT_ID`, and `EBAY_CLIENT_SECRET`. Leave `PRICECHARTING_TOKEN` blank. Restart or redeploy after any env change.
 
 ### On your computer
 
@@ -101,7 +101,8 @@ Edit `.env.local`, then run `npm run dev` again.
 
 | Name | Value |
 | --- | --- |
-| `POKEMONTCG_API_KEY` | Free key from [dev.pokemontcg.io](https://dev.pokemontcg.io/) |
+| `SCRYDEX_API_KEY` | API key from a paid [Scrydex](https://scrydex.com/pricing) plan |
+| `SCRYDEX_TEAM_ID` | Team ID from the Scrydex account hub |
 | `EBAY_CLIENT_ID` | Client ID from [developer.ebay.com](https://developer.ebay.com/) |
 | `EBAY_CLIENT_SECRET` | Client Secret from the same keyset |
 | `EBAY_ENV` | `PRODUCTION` |
@@ -110,15 +111,18 @@ Edit `.env.local`, then run `npm run dev` again.
 
 Do not add `PRICECHARTING_TOKEN` for this deploy. Graded prices are deferred.
 
-### 1. TCGPlayer market (via Pokémon TCG API)
+### 1. Scrydex market (raw English)
 
-TCGPlayer is not granting new developer API keys. CardScout does not call TCGPlayer’s own API. The Values box is labeled **TCGPlayer market (via Pokémon TCG API)** and reads `tcgplayer.prices.*.market` from [pokemontcg.io](https://pokemontcg.io/). That field is the English raw market price (market, low, mid, and high are on the card object). A free key from [dev.pokemontcg.io](https://dev.pokemontcg.io/) only raises the rate limit.
+Scrydex is the successor to the Pokémon TCG API. CardScout calls `https://api.scrydex.com/pokemon/v1/en/cards?include=prices` and does not use pokemontcg.io or dev.pokemontcg.io.
 
-[tcgapi.dev](https://tcgapi.dev/) also republishes TCGPlayer marketplace prices and has open signup, but it needs a key and a small daily free quota. The Pokémon TCG API is the better default here: it works with no key, and it already includes the English card identity, pictures, and the TCGPlayer market price.
+Prices require a paid plan. A request with no key returns 401. [Auth docs](https://scrydex.com/docs/getting-started/authentication) say you need a plan, a team ID, and an API key. [Starter](https://scrydex.com/pricing) is $29/month, includes 5,000 credits, and includes raw prices. Most requests cost 1 credit. CardScout caches a search for several minutes. Scrydex's FAQ says graded prices and history start on higher plans. This app only reads the raw Near Mint `market`, so Starter is the plan that covers the raw box.
 
-1. Open [dev.pokemontcg.io](https://dev.pokemontcg.io/) and create a free API key.
-2. Set `POKEMONTCG_API_KEY` to that key on Vercel.
-3. A deal is the lowest listed price for that finish (holofoil, for example) at least 8% under the market price.
+The `market` field is a USD average across US sources. It is not labeled as TCGPlayer's own market price. A variant can still include a TCGPlayer purchase link, and Values uses that link when it is present. Docs: [pricing data](https://scrydex.com/docs/getting-started/prices).
+
+1. Register at [scrydex.com/register](https://scrydex.com/register) and subscribe at [scrydex.com/pricing](https://scrydex.com/pricing).
+2. Create a team and copy the team ID. Generate an API key.
+3. Set `SCRYDEX_API_KEY` and `SCRYDEX_TEAM_ID` on Vercel.
+4. A deal is the lowest known Near Mint price for that finish at least 8% under the market price.
 
 ### 2. eBay sold and completed
 
@@ -150,6 +154,6 @@ Never commit `.env.local`. Only `.env.example` belongs in git, and it has empty 
 
 - Next.js App Router, TypeScript, Tailwind
 - Prices go through `LivePriceProvider` (`lib/prices`). `DemoPriceProvider` runs only after a live call throws.
-- Live mode uses the Pokémon TCG API (TCGPlayer market) and eBay Marketplace Insights. PriceCharting stays wired and loads only when `PRICECHARTING_TOKEN` is set.
+- Live mode uses Scrydex for the raw English market and eBay Marketplace Insights for sold comps. PriceCharting stays wired and loads only when `PRICECHARTING_TOKEN` is set.
 - News is fetched on the server from RSS (`lib/news`)
 - JSON for other tools: `/api/deals`, `/api/values`, `/api/news`

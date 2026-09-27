@@ -1,7 +1,7 @@
 import { TCGPLAYER_COPY } from "@/lib/prices/copy";
 import { loadEbaySold } from "@/lib/prices/ebay-sold";
 import { loadPriceCharting, priceChartingConfigured } from "@/lib/prices/pricecharting";
-import { listCatalogDeals, listCatalogSets, searchCatalog, type CatalogCard } from "@/lib/prices/pokemontcg-provider";
+import { listCatalogDeals, listCatalogSets, searchCatalog, type CatalogCard } from "@/lib/prices/scrydex-provider";
 import type { CardSearchResult, CardValue, DealListing, PriceProvider, PriceQuery } from "@/lib/types";
 
 /**
@@ -28,18 +28,19 @@ function toCardValue(card: CatalogCard): Promise<CardValue> {
     lowPrice: card.lowPrice,
     highPrice: card.highPrice,
     currency: "USD",
-    priceSource: "TCGPlayer market via the Pokémon TCG API, plus eBay sold when those keys are set",
+    priceSource: "Scrydex Near Mint market, plus eBay sold when those keys are set",
     updatedAt: card.updatedAt,
     sources: {
         tcgplayer: {
         id: "tcgplayer",
         ...TCGPLAYER_COPY,
-        name: "TCGPlayer market (via Pokémon TCG API)",
+        name: "Scrydex market",
+        caveat: "This is the Near Mint USD market average. A sudden spike can take a while to show up.",
         status: card.marketPrice != null ? "live" : "unavailable",
         statusNote:
           card.marketPrice != null
-            ? "English raw market price. TCGPlayer is not issuing new developer keys, so this number is the market field on the Pokémon TCG API."
-            : "No TCGPlayer market price for this printing.",
+            ? "English raw Near Mint price from Scrydex. Their market field averages US sources. It is not a TCGPlayer-only market number. The link opens TCGPlayer when Scrydex has that marketplace on the variant."
+            : "No Scrydex Near Mint market price for this printing.",
         marketPrice: card.marketPrice,
         lowPrice: card.lowPrice,
         finishLabel: card.finishLabel ? `English · ${card.finishLabel}` : "English raw",
@@ -54,10 +55,10 @@ function toCardValue(card: CatalogCard): Promise<CardValue> {
 
 export class LivePriceProvider implements PriceProvider {
   readonly id = "live" as const;
-  readonly label = "TCGPlayer market and eBay sold";
+  readonly label = "Scrydex market and eBay sold";
   readonly live = true;
   readonly disclaimer =
-    "Live prices are on. The raw market number is TCGPlayer via the Pokémon TCG API. Sold comps load from eBay when the client id and secret are set. Graded PriceCharting prices are coming soon and stay blank until that token is set. Empty boxes are not filled with practice numbers.";
+    "Live prices are on. The raw market number is the Scrydex Near Mint average for an English card. Sold comps load from eBay when the client id and secret are set. Graded PriceCharting prices are coming soon and stay blank until that token is set. Empty boxes are not filled with practice numbers.";
 
   async searchCards(query: PriceQuery): Promise<CardSearchResult> {
     const cards = await searchCatalog(query);

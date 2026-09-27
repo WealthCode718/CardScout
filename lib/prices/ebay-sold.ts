@@ -2,7 +2,7 @@ import { blankEbaySold, EBAY_SOLD_COPY, EBAY_SOLD_WINDOW } from "@/lib/prices/co
 import { EBAY_INSIGHTS_SCOPE, ebayAccessToken, ebayConfigured, ebayHost } from "@/lib/prices/ebay-auth";
 import { serverGet } from "@/lib/prices/server-fetch";
 import { median, roundMoney, trimOutliers } from "@/lib/prices/money";
-import type { CatalogCard } from "@/lib/prices/pokemontcg-provider";
+import type { CatalogCard } from "@/lib/prices/scrydex-provider";
 import { junkTitle, looksGraded, titleHasCardName, titleHasSet, titleNumberAgrees } from "@/lib/prices/titles";
 import type { EbaySoldSource, SoldComp } from "@/lib/types";
 

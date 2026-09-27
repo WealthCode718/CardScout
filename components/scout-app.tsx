@@ -30,13 +30,15 @@ function PriceModeBadge({
   }
   const payload = query.tab === "values" ? values : deals;
   const liveOn = Boolean(payload?.provider.live && !payload.fallback);
+  const unconfigured = Boolean(payload && !payload.provider.live && !payload.fallback);
+  const label = liveOn ? "Live prices on" : unconfigured ? "Not configured" : "Practice fallback";
   return (
     <p
       className={`mt-1 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${
         liveOn ? "bg-lime/15 text-lime ring-lime/40" : "bg-coral/15 text-coral ring-coral/40"
       }`}
     >
-      {liveOn ? "Live prices on" : "Practice fallback"}
+      {label}
     </p>
   );
 }

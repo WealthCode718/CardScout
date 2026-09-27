@@ -1,5 +1,6 @@
 import { DemoPriceProvider } from "@/lib/prices/demo-provider";
 import { LivePriceProvider } from "@/lib/prices/live-provider";
+import { ScrydexConfigError } from "@/lib/prices/scrydex-provider";
 import { sortDeals } from "@/lib/query";
 import type { DealResponse, DealSort, PriceProvider, PriceProviderId, PriceQuery, ValueResponse } from "@/lib/types";
 
@@ -20,6 +21,15 @@ function describe(provider: PriceProvider) {
   };
 }
 
+function unconfiguredProvider(reason: string) {
+  return {
+    id: "live" as const,
+    label: "Scrydex market and eBay sold",
+    live: false,
+    disclaimer: reason,
+  };
+}
+
 export async function getDealResponse(query: PriceQuery, sort: DealSort = "discount"): Promise<DealResponse> {
   const provider = getPriceProvider();
   try {
@@ -31,6 +41,14 @@ export async function getDealResponse(query: PriceQuery, sort: DealSort = "disco
       sets,
     };
   } catch (error) {
+    if (error instanceof ScrydexConfigError) {
+      return {
+        provider: unconfiguredProvider(error.message),
+        fallback: false,
+        deals: [],
+        sets: [],
+      };
+    }
     if (provider.id === "demo") throw error;
     const demo = new DemoPriceProvider();
     const [deals, sets] = await Promise.all([demo.listDeals(query), demo.listSets()]);
@@ -62,6 +80,15 @@ export async function getValueResponse(query: PriceQuery): Promise<ValueResponse
           : undefined,
     };
   } catch (error) {
+    if (error instanceof ScrydexConfigError) {
+      return {
+        provider: unconfiguredProvider(error.message),
+        fallback: false,
+        mode,
+        cards: [],
+        matchCount: 0,
+      };
+    }
     if (provider.id === "demo") throw error;
     const demo = new DemoPriceProvider();
     const { cards, matchCount } = await demo.searchCards(query);

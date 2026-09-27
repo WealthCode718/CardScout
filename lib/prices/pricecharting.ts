@@ -1,7 +1,7 @@
 import { blankPriceCharting, PRICECHARTING_COPY } from "@/lib/prices/copy";
 import { roundMoney } from "@/lib/prices/money";
 import { serverGet } from "@/lib/prices/server-fetch";
-import type { CatalogCard } from "@/lib/prices/pokemontcg-provider";
+import type { CatalogCard } from "@/lib/prices/scrydex-provider";
 import type { GradePrice, PriceChartingSource } from "@/lib/types";
 
 const PRODUCT_URL = "https://www.pricecharting.com/api/product";

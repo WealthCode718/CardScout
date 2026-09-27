@@ -14,15 +14,17 @@ export function DealsPanel({ deals }: { deals: DealResponse }) {
           Under market
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          {deals.provider.live
-            ? "Asking price compared with the TCGPlayer market price for a raw English copy, via the Pokémon TCG API."
-            : "Asking price compared with a sample TCGPlayer market price."}{" "}
+          {deals.fallback
+            ? "Asking price compared with a sample market price."
+            : deals.provider.live
+              ? "Lowest known price compared with the Scrydex Near Mint market for a raw English copy."
+              : "Deals stay empty until a Scrydex plan is connected."}{" "}
           {deals.deals.length === 0 ? "Nothing matched." : `${deals.deals.length} ${deals.deals.length === 1 ? "card" : "cards"}.`}
         </p>
       </div>
 
       <SourceNote
-        tone={deals.fallback ? "warn" : "calm"}
+        tone={deals.fallback || !deals.provider.live ? "warn" : "calm"}
         title={
           deals.fallback
             ? "Live prices did not load. These are practice numbers until the live call works."
@@ -33,8 +35,12 @@ export function DealsPanel({ deals }: { deals: DealResponse }) {
 
       {deals.deals.length === 0 ? (
         <div className="rounded-2xl bg-panel px-4 py-8 text-center">
-          <p className="font-medium text-paper">No deals in this search</p>
-          <p className="mt-1 text-sm text-muted">Try another set, or clear the name filter.</p>
+          <p className="font-medium text-paper">{deals.provider.live || deals.fallback ? "No deals in this search" : "Scrydex is not configured"}</p>
+          <p className="mt-1 text-sm text-muted">
+            {deals.provider.live || deals.fallback
+              ? "Try another set, or clear the name filter."
+              : "Add SCRYDEX_API_KEY and SCRYDEX_TEAM_ID. No market prices are invented."}
+          </p>
         </div>
       ) : (
         <ul className="space-y-2.5">
