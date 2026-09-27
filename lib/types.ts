@@ -4,13 +4,79 @@ export type TabId = (typeof TABS)[number];
 
 export type DealSort = "discount" | "savings";
 
-export type PriceProviderId = "demo" | "pokemontcg" | "ebay";
+/** `pokemontcg` and `ebay` in older env files are treated as `live`. */
+export type PriceProviderId = "demo" | "live";
+
+export type SourceStatus = "live" | "sample" | "unconfigured" | "unavailable";
 
 export interface ProviderInfo {
   id: PriceProviderId;
   label: string;
   live: boolean;
   disclaimer: string;
+}
+
+export interface GradePrice {
+  label: string;
+  price: number;
+}
+
+export interface SoldComp {
+  title: string;
+  price: number;
+  url: string | null;
+  soldAt: string | null;
+}
+
+export interface TcgplayerSource {
+  id: "tcgplayer";
+  name: string;
+  role: string;
+  caveat: string;
+  status: SourceStatus;
+  statusNote: string;
+  marketPrice: number | null;
+  lowPrice: number | null;
+  finishLabel: string | null;
+  url: string | null;
+  updatedAt: string | null;
+}
+
+export interface PriceChartingSource {
+  id: "pricecharting";
+  name: string;
+  role: string;
+  caveat: string;
+  status: SourceStatus;
+  statusNote: string;
+  grades: GradePrice[];
+  url: string | null;
+  updatedAt: string | null;
+}
+
+export interface EbaySoldSource {
+  id: "ebay-sold";
+  name: string;
+  role: string;
+  caveat: string;
+  status: SourceStatus;
+  statusNote: string;
+  medianPrice: number | null;
+  saleCount: number;
+  windowLabel: string;
+  rawMedian: number | null;
+  rawCount: number;
+  gradedMedian: number | null;
+  gradedCount: number;
+  searchUrl: string | null;
+  comps: SoldComp[];
+  updatedAt: string | null;
+}
+
+export interface CardSources {
+  tcgplayer: TcgplayerSource;
+  pricecharting: PriceChartingSource;
+  ebaySold: EbaySoldSource;
 }
 
 export interface CardValue {
@@ -21,12 +87,14 @@ export interface CardValue {
   numberLabel: string;
   rarity: string;
   imageUrl: string;
+  /** TCGPlayer market for the raw English copy, when we have one. */
   marketPrice: number | null;
   lowPrice: number | null;
   highPrice: number | null;
   currency: "USD";
   priceSource: string;
   updatedAt: string | null;
+  sources: CardSources;
 }
 
 export interface DealListing {
@@ -41,6 +109,8 @@ export interface DealListing {
   condition: string;
   listingPrice: number;
   marketPrice: number;
+  /** What the crossed-out baseline is. Always a market figure, never an asking price. */
+  marketLabel: string;
   discountPercent: number;
   savings: number;
   seller: string;
@@ -75,6 +145,15 @@ export interface ValueResponse {
   /** Featured cards when the search box is empty. Search results otherwise. */
   mode: "featured" | "results";
   cards: CardValue[];
+  /** How many printings matched before the live-source cap. */
+  matchCount: number;
+  /** Why the list is shorter than matchCount, when it is. */
+  limitNote?: string;
+}
+
+export interface CardSearchResult {
+  cards: CardValue[];
+  matchCount: number;
 }
 
 export interface NewsResponse {
@@ -93,7 +172,7 @@ export interface PriceProvider {
   readonly label: string;
   readonly live: boolean;
   readonly disclaimer: string;
-  searchCards(query: PriceQuery): Promise<CardValue[]>;
+  searchCards(query: PriceQuery): Promise<CardSearchResult>;
   listDeals(query: PriceQuery): Promise<DealListing[]>;
   listSets(): Promise<string[]>;
 }

@@ -14,7 +14,10 @@ export function DealsPanel({ deals }: { deals: DealResponse }) {
           Under market
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Asking price compared with an estimated market price. {deals.deals.length === 0 ? "Nothing matched." : `${deals.deals.length} ${deals.deals.length === 1 ? "card" : "cards"}.`}
+          {deals.provider.live
+            ? "Asking price compared with the TCGPlayer market price for a raw English copy."
+            : "Asking price compared with a sample TCGPlayer market price."}{" "}
+          {deals.deals.length === 0 ? "Nothing matched." : `${deals.deals.length} ${deals.deals.length === 1 ? "card" : "cards"}.`}
         </p>
       </div>
 
@@ -54,7 +57,8 @@ export function DealsPanel({ deals }: { deals: DealResponse }) {
                   </p>
                   <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-xl font-semibold text-paper tabular-nums">{formatUsd(deal.listingPrice)}</span>
-                    <span className="text-[12px] text-faint line-through tabular-nums">{formatUsd(deal.marketPrice)} market</span>
+                    <span className="text-[12px] text-faint line-through tabular-nums">{formatUsd(deal.marketPrice)}</span>
+                    <span className="text-[12px] text-faint">{deal.marketLabel}</span>
                     <span className="text-[12px] font-medium text-lime">Save {formatUsd(deal.savings)}</span>
                   </p>
                   <p className="mt-1 text-[12px] text-muted">

@@ -1,14 +1,19 @@
 import { DemoPriceProvider } from "@/lib/prices/demo-provider";
-import { EbayPriceProvider } from "@/lib/prices/ebay-provider";
-import { PokemonTcgPriceProvider } from "@/lib/prices/pokemontcg-provider";
+import { LivePriceProvider } from "@/lib/prices/live-provider";
 import { sortDeals } from "@/lib/query";
 import type { DealResponse, DealSort, PriceProvider, PriceProviderId, PriceQuery, ValueResponse } from "@/lib/types";
 
+/** Older configs used `pokemontcg` or `ebay` as the only source. Both now mean live mode. */
+export function resolvePriceMode(raw = process.env.PRICE_PROVIDER): PriceProviderId {
+  const choice = (raw ?? "demo").trim().toLowerCase();
+  if (choice === "live" || choice === "pokemontcg" || choice === "pokemon" || choice === "tcg" || choice === "ebay") {
+    return "live";
+  }
+  return "demo";
+}
+
 export function getPriceProvider(): PriceProvider {
-  const choice = (process.env.PRICE_PROVIDER ?? "demo").trim().toLowerCase();
-  if (choice === "pokemontcg" || choice === "pokemon" || choice === "tcg") return new PokemonTcgPriceProvider();
-  if (choice === "ebay") return new EbayPriceProvider();
-  return new DemoPriceProvider();
+  return resolvePriceMode() === "live" ? new LivePriceProvider() : new DemoPriceProvider();
 }
 
 function describe(provider: PriceProvider) {
@@ -36,7 +41,7 @@ export async function getDealResponse(query: PriceQuery, sort: DealSort = "disco
     const [deals, sets] = await Promise.all([demo.listDeals(query), demo.listSets()]);
     return {
       provider: describe(demo),
-      requestedProvider: provider.id as PriceProviderId,
+      requestedProvider: provider.id,
       fallback: true,
       fallbackReason: error instanceof Error ? error.message : "Live prices did not load.",
       deals: sortDeals(deals, sort),
@@ -49,12 +54,22 @@ export async function getValueResponse(query: PriceQuery): Promise<ValueResponse
   const provider = getPriceProvider();
   const mode = query.name?.trim() || query.set?.trim() ? "results" : "featured";
   try {
-    const cards = await provider.searchCards(query);
-    return { provider: describe(provider), fallback: false, mode, cards };
+    const { cards, matchCount } = await provider.searchCards(query);
+    return {
+      provider: describe(provider),
+      fallback: false,
+      mode,
+      cards,
+      matchCount,
+      limitNote:
+        provider.live && matchCount > cards.length
+          ? "Live prices load a few printings at a time so we stay inside each source's limits."
+          : undefined,
+    };
   } catch (error) {
     if (provider.id === "demo") throw error;
     const demo = new DemoPriceProvider();
-    const cards = await demo.searchCards(query);
+    const { cards, matchCount } = await demo.searchCards(query);
     return {
       provider: describe(demo),
       requestedProvider: provider.id as PriceProviderId,
@@ -62,6 +77,7 @@ export async function getValueResponse(query: PriceQuery): Promise<ValueResponse
       fallbackReason: error instanceof Error ? error.message : "Live prices did not load.",
       mode,
       cards,
+      matchCount,
     };
   }
 }

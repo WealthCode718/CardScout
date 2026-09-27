@@ -1,5 +1,5 @@
 import { matchesText, underMarket } from "@/lib/prices/discount";
-import type { CardValue, DealListing, PriceProvider, PriceQuery } from "@/lib/types";
+import type { DealListing, PriceQuery } from "@/lib/types";
 
 const API = "https://api.pokemontcg.io/v2/cards";
 const WATCH_QUERY =
@@ -13,6 +13,15 @@ const FINISH_PREFERENCE = [
   "1stEditionHolofoil",
   "1stEditionNormal",
 ];
+
+const FINISH_LABELS: Record<string, string> = {
+  holofoil: "Holofoil",
+  reverseHolofoil: "Reverse holofoil",
+  normal: "Normal",
+  unlimitedHolofoil: "Unlimited holofoil",
+  "1stEditionHolofoil": "1st edition holofoil",
+  "1stEditionNormal": "1st edition",
+};
 
 interface TcgPrices {
   low?: number | null;
@@ -41,7 +50,26 @@ interface CacheEntry {
   cards: TcgCard[];
 }
 
+export interface CatalogCard {
+  id: string;
+  name: string;
+  setName: string;
+  setId: string;
+  numberLabel: string;
+  rarity: string;
+  imageUrl: string;
+  marketPrice: number | null;
+  lowPrice: number | null;
+  highPrice: number | null;
+  finish: string | null;
+  finishLabel: string | null;
+  tcgplayerUrl: string | null;
+  updatedAt: string | null;
+  ask: number | null;
+}
+
 let watchCache: CacheEntry | null = null;
+const queryCache = new Map<string, CacheEntry>();
 
 function headers(): HeadersInit {
   const key = process.env.POKEMONTCG_API_KEY?.trim();
@@ -62,6 +90,9 @@ function buildLucene(query: PriceQuery): string {
 }
 
 async function fetchCards(lucene: string, pageSize: number): Promise<TcgCard[]> {
+  const cacheKey = `${lucene}|${pageSize}`;
+  const cached = queryCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.cards;
   const url = new URL(API);
   url.searchParams.set("q", lucene);
   url.searchParams.set("pageSize", String(pageSize));
@@ -72,10 +103,14 @@ async function fetchCards(lucene: string, pageSize: number): Promise<TcgCard[]> 
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new Error(`Pokémon TCG API returned ${response.status}. A free key from dev.pokemontcg.io can help if you are being rate limited.`);
+    throw new Error(
+      `Pokémon TCG API returned ${response.status}. A free key from dev.pokemontcg.io can help if you are being rate limited.`,
+    );
   }
   const body = (await response.json()) as { data?: TcgCard[] };
-  return body.data ?? [];
+  const cards = body.data ?? [];
+  queryCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, cards });
+  return cards;
 }
 
 async function watchCards(): Promise<TcgCard[]> {
@@ -121,102 +156,90 @@ function toIso(value: string | undefined): string | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
-function toValue(card: TcgCard): CardValue | null {
+function toCatalog(card: TcgCard): CatalogCard {
   const finish = pickFinish(card.tcgplayer?.prices);
-  const setName = card.set?.name ?? "Unknown set";
+  const market = finish?.quote.market ?? null;
   return {
     id: card.id,
     name: card.name,
-    setName,
+    setName: card.set?.name ?? "Unknown set",
     setId: card.set?.id ?? "",
     numberLabel: numberLabel(card),
     rarity: card.rarity ?? "Unknown rarity",
     imageUrl: card.images?.small ?? card.images?.large ?? "",
-    marketPrice: finish?.quote.market ?? null,
+    marketPrice: market,
     lowPrice: finish?.quote.low ?? null,
     highPrice: finish?.quote.high ?? null,
-    currency: "USD",
-    priceSource: finish ? `TCGPlayer ${finish.finish} via Pokémon TCG API` : "Pokémon TCG API (no TCGPlayer price)",
+    finish: finish?.finish ?? null,
+    finishLabel: finish ? (FINISH_LABELS[finish.finish] ?? finish.finish) : null,
+    tcgplayerUrl: card.tcgplayer?.url ?? null,
     updatedAt: toIso(card.tcgplayer?.updatedAt),
+    ask: market != null && finish ? saneAsk(market, finish.quote) : null,
   };
 }
 
-function toDeal(card: TcgCard): DealListing | null {
-  const finish = pickFinish(card.tcgplayer?.prices);
-  if (!finish?.quote.market) return null;
-  const ask = saneAsk(finish.quote.market, finish.quote);
-  if (ask == null) return null;
-  const deal = underMarket(finish.quote.market, ask);
+function cardTextMatch(card: CatalogCard, query: PriceQuery): boolean {
+  return (
+    matchesText(`${card.name} ${card.numberLabel} ${card.rarity}`, query.name) &&
+    matchesText(`${card.setName} ${card.setId}`, query.set)
+  );
+}
+
+export async function searchCatalog(query: PriceQuery): Promise<CatalogCard[]> {
+  const name = query.name?.trim() ?? "";
+  const setName = query.set?.trim() ?? "";
+  const cards = !name && !setName ? (await watchCards()).slice(0, 24) : await fetchCards(buildLucene(query), 30);
+  return cards
+    .map(toCatalog)
+    .filter((card) => card.name && card.marketPrice != null)
+    .sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0));
+}
+
+export function dealFromCatalog(card: CatalogCard): DealListing | null {
+  if (card.marketPrice == null || card.ask == null) return null;
+  const deal = underMarket(card.marketPrice, card.ask);
   if (!deal || deal.discountPercent < 8) return null;
-  const value = toValue(card);
-  if (!value) return null;
+  const finish = card.finishLabel ? `${card.finishLabel} ` : "";
   return {
-    id: `tcg-${card.id}-${finish.finish}`,
+    id: `tcg-${card.id}-${card.finish ?? "market"}`,
     cardId: card.id,
-    name: value.name,
-    setName: value.setName,
-    setId: value.setId,
-    numberLabel: value.numberLabel,
-    rarity: value.rarity,
-    imageUrl: value.imageUrl,
+    name: card.name,
+    setName: card.setName,
+    setId: card.setId,
+    numberLabel: card.numberLabel,
+    rarity: card.rarity,
+    imageUrl: card.imageUrl,
     condition: "Near Mint",
-    listingPrice: ask,
-    marketPrice: finish.quote.market,
+    listingPrice: card.ask,
+    marketPrice: card.marketPrice,
+    marketLabel: "TCGPlayer market",
     discountPercent: deal.discountPercent,
     savings: deal.savings,
     seller: "Lowest listed",
     marketplace: "TCGPlayer",
-    listingUrl: card.tcgplayer?.url ?? null,
-    priceSource: value.priceSource,
-    updatedAt: value.updatedAt,
+    listingUrl: card.tcgplayerUrl,
+    priceSource: `TCGPlayer ${finish}market vs lowest listed`,
+    updatedAt: card.updatedAt,
   };
 }
 
-function cardTextMatch(card: TcgCard, query: PriceQuery): boolean {
-  const setName = card.set?.name ?? "";
-  const setId = card.set?.id ?? "";
-  return (
-    matchesText(`${card.name} ${card.number ?? ""} ${card.rarity ?? ""}`, query.name) &&
-    matchesText(`${setName} ${setId}`, query.set)
-  );
+export async function listCatalogDeals(query: PriceQuery): Promise<DealListing[]> {
+  const name = query.name?.trim() ?? "";
+  const outsideWatch = name.length > 0 && !WATCH_QUERY.toLowerCase().includes(name.toLowerCase());
+  const raw = outsideWatch ? await fetchCards(buildLucene(query), 40) : await watchCards();
+  return raw
+    .map(toCatalog)
+    .filter((card) => cardTextMatch(card, query))
+    .map(dealFromCatalog)
+    .filter((deal): deal is DealListing => Boolean(deal))
+    .sort((a, b) => b.discountPercent - a.discountPercent || b.savings - a.savings);
 }
 
-export class PokemonTcgPriceProvider implements PriceProvider {
-  readonly id = "pokemontcg" as const;
-  readonly label = "Pokémon TCG API";
-  readonly live = true;
-  readonly disclaimer =
-    "Market prices come from TCGPlayer through the Pokémon TCG API. A deal means the lowest listed price for that finish is under the market price. Confirm the printing and seller before you buy.";
-
-  async searchCards(query: PriceQuery): Promise<CardValue[]> {
-    const name = query.name?.trim() ?? "";
-    const setName = query.set?.trim() ?? "";
-    const cards = !name && !setName ? (await watchCards()).slice(0, 24) : await fetchCards(buildLucene(query), 30);
-    return cards
-      .map(toValue)
-      .filter((card): card is CardValue => Boolean(card?.name))
-      .filter((card) => card.marketPrice != null)
-      .sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0));
+export async function listCatalogSets(): Promise<string[]> {
+  const cards = await watchCards();
+  const sets = new Set<string>();
+  for (const card of cards.map(toCatalog)) {
+    if (dealFromCatalog(card)) sets.add(card.setName);
   }
-
-  async listDeals(query: PriceQuery): Promise<DealListing[]> {
-    const name = query.name?.trim() ?? "";
-    const outsideWatch = name.length > 0 && !WATCH_QUERY.toLowerCase().includes(name.toLowerCase());
-    const cards = outsideWatch ? await fetchCards(buildLucene(query), 40) : await watchCards();
-    return cards
-      .filter((card) => cardTextMatch(card, query))
-      .map(toDeal)
-      .filter((deal): deal is DealListing => Boolean(deal))
-      .sort((a, b) => b.discountPercent - a.discountPercent || b.savings - a.savings);
-  }
-
-  async listSets(): Promise<string[]> {
-    const cards = await watchCards();
-    const sets = new Set<string>();
-    for (const card of cards) {
-      const deal = toDeal(card);
-      if (deal) sets.add(deal.setName);
-    }
-    return [...sets].sort((a, b) => a.localeCompare(b));
-  }
+  return [...sets].sort((a, b) => a.localeCompare(b));
 }

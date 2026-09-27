@@ -4,6 +4,7 @@ import { getDealResponse, getValueResponse } from "@/lib/prices";
 import { firstParam, parseSort, parseTab, type ScoutQuery } from "@/lib/query";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export default async function Home({
   searchParams,

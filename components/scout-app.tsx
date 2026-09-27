@@ -76,8 +76,8 @@ export function ScoutApp({
         </div>
         <footer className="mt-8 border-t border-white/10 pt-4 text-[11px] leading-relaxed text-faint">
           CardScout is a fan-made price scout for families. It is not affiliated with Nintendo, The Pokémon Company, TPCi,
-          eBay, or TCGPlayer. Card names and pictures are shown so you can tell printings apart. Sample mode is for
-          practice, not for buying or selling.
+          eBay, TCGPlayer, or PriceCharting. Card names and pictures are shown so you can tell printings apart. Sample
+          mode is for practice, not for buying or selling.
         </footer>
       </main>
     </>
