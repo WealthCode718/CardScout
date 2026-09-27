@@ -7,11 +7,15 @@ import { junkTitle, looksGraded, titleHasCardName, titleHasSet, titleNumberAgree
 import type { EbaySoldSource, SoldComp } from "@/lib/types";
 
 /**
- * Sold comps use eBay Marketplace Insights (`item_sales/search`), the official
- * sold-item API. The Browse API only returns active listings, including Buy It
- * Now asks, so those asks are not treated as sales or as the market price.
- * Marketplace Insights is a limited-release API: if eBay has not approved this
- * app, the Values box says so instead of scraping ebay.com.
+ * Sold comps use eBay Marketplace Insights (`item_sales/search`).
+ *
+ * Verified against the Browse API item_summary/search contract: that method
+ * returns active listings only. Its buyingOptions filter selects Buy It Now,
+ * auction, or best offer. It has no sold, completed, or soldItems filter, so
+ * those asks are not shown as sales. Client ID and secret still come from an
+ * eBay developer app (the same client-credentials pair used for Browse).
+ * Marketplace Insights is limited release. If eBay has not approved this app,
+ * the box says so instead of scraping ebay.com.
  *
  * CCG Individual Cards is category 183454.
  */
@@ -164,7 +168,7 @@ export async function loadEbaySold(card: CatalogCard): Promise<EbaySoldSource> {
   if (!ebayConfigured()) {
     return blankEbaySold(
       "unconfigured",
-      "Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET from an eBay developer app (client credentials). Sold prices also need eBay to allow Marketplace Insights for that app.",
+      "Not configured. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET from developer.ebay.com (client credentials). Sold prices need Marketplace Insights access. The Browse API has no sold filter, so Buy It Now asks are not shown here.",
     );
   }
   if (blockedReason) return blankEbaySold("unavailable", blockedReason);

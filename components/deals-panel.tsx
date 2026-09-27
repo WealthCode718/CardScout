@@ -15,7 +15,7 @@ export function DealsPanel({ deals }: { deals: DealResponse }) {
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           {deals.provider.live
-            ? "Asking price compared with the TCGPlayer market price for a raw English copy."
+            ? "Asking price compared with the TCGPlayer market price for a raw English copy, via the Pokémon TCG API."
             : "Asking price compared with a sample TCGPlayer market price."}{" "}
           {deals.deals.length === 0 ? "Nothing matched." : `${deals.deals.length} ${deals.deals.length === 1 ? "card" : "cards"}.`}
         </p>

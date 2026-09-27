@@ -31,13 +31,14 @@ function toCardValue(card: CatalogCard): Promise<CardValue> {
     priceSource: "TCGPlayer market, with PriceCharting and eBay sold when those keys are set",
     updatedAt: card.updatedAt,
     sources: {
-      tcgplayer: {
+        tcgplayer: {
         id: "tcgplayer",
         ...TCGPLAYER_COPY,
+        name: "TCGPlayer market (via Pokémon TCG API)",
         status: card.marketPrice != null ? "live" : "unavailable",
         statusNote:
           card.marketPrice != null
-            ? "English raw market price from TCGPlayer, via the Pokémon TCG API."
+            ? "English raw market price. TCGPlayer is not issuing new developer keys, so this number is the market field on the Pokémon TCG API."
             : "No TCGPlayer market price for this printing.",
         marketPrice: card.marketPrice,
         lowPrice: card.lowPrice,

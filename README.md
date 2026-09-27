@@ -56,7 +56,7 @@ The corner badge says **Live prices on** when the live call worked. The big numb
 | **PriceCharting** | Graded slabs (PSA, BGS) and a quick overall look | One odd or phantom sale can pull a grade away from the real number. |
 | **eBay Sold & Completed** | What buyers actually paid, raw or graded | A single auction can jump when people bid against each other. |
 
-Each box has a chip: **Live**, **Needs a key**, or **Didn't load**. A missing key does not get a made-up price. **Practice** appears only on the emergency fallback screen, after a live call fails.
+Each box has a chip: **Live**, **Not configured**, or **Didn't load**. A missing key does not get a made-up price. **Practice** appears only on the emergency fallback screen, after a live call fails.
 
 ### News
 
@@ -78,7 +78,7 @@ Card names and pictures are there so you can tell printings apart. CardScout is 
 
 PriceCharting’s API does not include the history chart. CardScout links to the chart on their site and does not draw a fake one. eBay Buy It Now asks are not sold prices and are not the Deals baseline.
 
-If the card list itself fails, the screen switches to practice numbers and says so. If only PriceCharting or eBay is missing a key, that box says **Needs a key** and the TCGPlayer box can still be live.
+If the card list itself fails, the screen switches to practice numbers and says so. If PriceCharting or eBay is missing a key, that box says **Not configured** and the TCGPlayer box can still be live.
 
 ## Turn on live prices
 
@@ -102,9 +102,11 @@ Edit `.env.local`, then run `npm run dev` again.
 
 PriceCharting is paced at one request per second, so the Values route asks for up to 30 seconds (`maxDuration` on the page and `/api/values`).
 
-### 1. TCGPlayer market (Pokémon TCG API)
+### 1. TCGPlayer market (via Pokémon TCG API)
 
-TCGPlayer does not give hobby projects a public price key. CardScout reads the market price Pokémon TCG API already publishes for English cards (`tcgplayer.prices.*.market`).
+TCGPlayer is not granting new developer API keys. CardScout does not call TCGPlayer’s own API. The Values box is labeled **TCGPlayer market (via Pokémon TCG API)** and reads `tcgplayer.prices.*.market` from [pokemontcg.io](https://pokemontcg.io/). That field is the English raw market price (market, low, mid, and high are on the card object). A free key from [dev.pokemontcg.io](https://dev.pokemontcg.io/) only raises the rate limit.
+
+[tcgapi.dev](https://tcgapi.dev/) also republishes TCGPlayer marketplace prices and has open signup, but it needs a key and a small daily free quota. The Pokémon TCG API is the better default here: it works with no key, and it already includes the English card identity, pictures, and the TCGPlayer market price.
 
 1. Open [dev.pokemontcg.io](https://dev.pokemontcg.io/) and create a free API key. Skip this if you are fine with the lower no-key rate limit.
 2. Set `POKEMONTCG_API_KEY` to that key.
@@ -122,11 +124,11 @@ TCGPlayer does not give hobby projects a public price key. CardScout reads the m
 ### 3. eBay sold and completed
 
 1. Open [developer.ebay.com](https://developer.ebay.com/) and create an application.
-2. Create a keyset. Copy the **Client ID** and **Client Secret** (the same client-credentials pair used for the Browse API).
+2. Create a keyset. Copy the **Client ID** and **Client Secret**. These are the client credentials eBay documents for the Browse API.
 3. Set `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, and `EBAY_ENV` (`PRODUCTION` or `SANDBOX`).
-4. Sold comps call Marketplace Insights `item_sales/search` with scope `https://api.ebay.com/oauth/api_scope/buy.marketplace.insights`. That API returns what buyers paid over about the last 90 days.
-5. The Browse API search only returns active listings, including Buy It Now asks. CardScout does not use those asks as sold comps or as the market price, and it does not scrape eBay.
-6. Marketplace Insights is a limited release. If eBay has not approved the application, the eBay box says the call was refused.
+4. The Browse API `item_summary/search` method returns **active** listings. Its `buyingOptions` filter chooses Buy It Now, auction, or best offer. It has no sold, completed, or soldItems filter. CardScout does not treat those asks as sold prices.
+5. Sold comps call Marketplace Insights `item_sales/search` with the same client ID and secret, scope `https://api.ebay.com/oauth/api_scope/buy.marketplace.insights`. That is eBay’s sold-item search and covers about the last 90 days.
+6. Marketplace Insights is a limited release. If eBay has not approved the application, the eBay box says the call was refused. CardScout does not scrape eBay.
 
 Never commit `.env.local`. Only `.env.example` belongs in git, and it has empty keys.
 

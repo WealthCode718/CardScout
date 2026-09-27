@@ -6,6 +6,13 @@ const API = "https://api.pokemontcg.io/v2/cards";
 const WATCH_QUERY =
   "(name:charizard OR name:pikachu OR name:umbreon OR name:mew OR name:gardevoir OR name:eevee OR name:mewtwo OR name:sylveon OR name:iono)";
 
+/** A single OR of every watch name makes this API return 500. Smaller groups do not. */
+const WATCH_GROUPS = [
+  "(name:charizard OR name:pikachu OR name:umbreon)",
+  "(name:mew OR name:gardevoir OR name:eevee)",
+  "(name:mewtwo OR name:sylveon OR name:iono)",
+];
+
 const FINISH_PREFERENCE = [
   "holofoil",
   "reverseHolofoil",
@@ -81,25 +88,46 @@ function escapeQuery(value: string): string {
   return value.replace(/["\\]/g, "").trim().slice(0, 60);
 }
 
-function buildLucene(query: PriceQuery): string {
-  const parts: string[] = [];
+/**
+ * Trailing * inside quotes makes api.pokemontcg.io return 500. An unquoted
+ * token already matches a prefix, so "Base" still finds "Base Set".
+ * When a name and a set are both set, the combined query is tried first and
+ * the name-only query is the fallback. Results are filtered again in memory.
+ */
+function luceneAttempts(query: PriceQuery): string[] {
   const name = escapeQuery(query.name ?? "");
   const setName = escapeQuery(query.set ?? "");
-  if (name) parts.push(`name:"${name}*"`);
-  if (setName) parts.push(`set.name:"${setName}*"`);
-  return parts.join(" ") || WATCH_QUERY;
+  const attempts: string[] = [];
+  if (name && setName) {
+    attempts.push(`name:"${name}" set.name:${setName.toLowerCase()}`);
+    attempts.push(`name:"${name}"`);
+  } else if (name) {
+    attempts.push(`name:"${name}"`);
+  } else if (setName) {
+    attempts.push(`set.name:${setName}`);
+  } else {
+    attempts.push(WATCH_QUERY);
+  }
+  return attempts;
 }
 
-async function fetchCards(lucene: string, pageSize: number): Promise<TcgCard[]> {
-  const cacheKey = `${lucene}|${pageSize}`;
+async function fetchCards(lucene: string, pageSize: number, orderBy?: string): Promise<TcgCard[]> {
+  const cacheKey = `${lucene}|${pageSize}|${orderBy ?? ""}`;
   const cached = queryCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached.cards;
   const url = new URL(API);
   url.searchParams.set("q", lucene);
   url.searchParams.set("pageSize", String(pageSize));
-  url.searchParams.set("orderBy", "-set.releaseDate");
-  const response = await serverGet(url, headers());
+  // orderBy=-set.releaseDate 500s on name+set queries. Use it only for a name.
+  if (orderBy) url.searchParams.set("orderBy", orderBy);
+  let response = await serverGet(url, headers());
+  // A 500 here is often a blip on a query that works a moment later.
+  if (response.status === 500) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    response = await serverGet(url, headers());
+  }
   if (response.status < 200 || response.status >= 300) {
+    if (cached) return cached.cards;
     throw new Error(
       `Pokémon TCG API returned ${response.status}. A free key from dev.pokemontcg.io can help if you are being rate limited.`,
     );
@@ -110,16 +138,42 @@ async function fetchCards(lucene: string, pageSize: number): Promise<TcgCard[]> 
   return cards;
 }
 
+async function fetchFirstWorking(query: PriceQuery, pageSize: number): Promise<TcgCard[]> {
+  const nameOnly = Boolean(query.name?.trim()) && !query.set?.trim();
+  let last: unknown;
+  for (const lucene of luceneAttempts(query)) {
+    const orders = nameOnly ? ["-set.releaseDate", undefined] : [undefined];
+    for (const orderBy of orders) {
+      try {
+        return await fetchCards(lucene, pageSize, orderBy);
+      } catch (error) {
+        last = error;
+      }
+    }
+  }
+  throw last instanceof Error ? last : new Error("Pokémon TCG API did not return cards.");
+}
+
 async function watchCards(): Promise<TcgCard[]> {
   if (watchCache && watchCache.expires > Date.now()) return watchCache.cards;
-  try {
-    const cards = await fetchCards(WATCH_QUERY, 250);
-    watchCache = { expires: Date.now() + 10 * 60 * 1000, cards };
-    return cards;
-  } catch (error) {
-    watchCache = null;
-    throw error;
+  const merged = new Map<string, TcgCard>();
+  let failures = 0;
+  for (const lucene of WATCH_GROUPS) {
+    try {
+      for (const card of await fetchCards(lucene, 40)) merged.set(card.id, card);
+    } catch {
+      failures += 1;
+    }
   }
+  if (merged.size === 0) {
+    if (watchCache) return watchCache.cards;
+    throw new Error(
+      "Pokémon TCG API returned 500. A free key from dev.pokemontcg.io can help if you are being rate limited.",
+    );
+  }
+  const cards = [...merged.values()];
+  watchCache = { expires: Date.now() + (failures > 0 ? 60_000 : 10 * 60 * 1000), cards };
+  return cards;
 }
 
 function pickFinish(prices: Record<string, TcgPrices> | undefined): { finish: string; quote: TcgPrices } | null {
@@ -185,10 +239,10 @@ function cardTextMatch(card: CatalogCard, query: PriceQuery): boolean {
 export async function searchCatalog(query: PriceQuery): Promise<CatalogCard[]> {
   const name = query.name?.trim() ?? "";
   const setName = query.set?.trim() ?? "";
-  const cards = !name && !setName ? (await watchCards()).slice(0, 24) : await fetchCards(buildLucene(query), 30);
+  const cards = !name && !setName ? (await watchCards()).slice(0, 24) : await fetchFirstWorking(query, 30);
   return cards
     .map(toCatalog)
-    .filter((card) => card.name && card.marketPrice != null)
+    .filter((card) => card.name && card.marketPrice != null && cardTextMatch(card, query))
     .sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0));
 }
 
@@ -209,7 +263,7 @@ export function dealFromCatalog(card: CatalogCard): DealListing | null {
     condition: "Near Mint",
     listingPrice: card.ask,
     marketPrice: card.marketPrice,
-    marketLabel: "TCGPlayer market",
+    marketLabel: "TCGPlayer market (via Pokémon TCG API)",
     discountPercent: deal.discountPercent,
     savings: deal.savings,
     seller: "Lowest listed",
@@ -223,7 +277,7 @@ export function dealFromCatalog(card: CatalogCard): DealListing | null {
 export async function listCatalogDeals(query: PriceQuery): Promise<DealListing[]> {
   const name = query.name?.trim() ?? "";
   const outsideWatch = name.length > 0 && !WATCH_QUERY.toLowerCase().includes(name.toLowerCase());
-  const raw = outsideWatch ? await fetchCards(buildLucene(query), 40) : await watchCards();
+  const raw = outsideWatch ? await fetchFirstWorking(query, 40) : await watchCards();
   return raw
     .map(toCatalog)
     .filter((card) => cardTextMatch(card, query))

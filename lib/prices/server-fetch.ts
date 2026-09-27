@@ -42,12 +42,14 @@ function request(
 }
 
 function retryable(status: number): boolean {
-  return status === 429 || status >= 500;
+  // 502/503/504 are Cloudflare blips and clear on a short retry. A 500 from
+  // this API is usually the query itself, so the caller should change it.
+  return status === 429 || status === 502 || status === 503 || status === 504;
 }
 
 async function withRetries(
   run: () => Promise<{ status: number; text: string }>,
-  attempts = 3,
+  attempts = 6,
 ): Promise<{ status: number; text: string }> {
   let last: { status: number; text: string } | null = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -58,7 +60,7 @@ async function withRetries(
     } catch (error) {
       if (attempt === attempts - 1) throw error;
     }
-    await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
   }
   return last ?? { status: 0, text: "" };
 }
