@@ -1,6 +1,8 @@
+import { blankEbaySold, EBAY_SOLD_WINDOW } from "@/lib/prices/copy";
 import { matchesText, underMarket } from "@/lib/prices/discount";
+import { median, roundMoney, trimOutliers } from "@/lib/prices/money";
 import { serverGet } from "@/lib/prices/server-fetch";
-import type { DealListing, PriceQuery } from "@/lib/types";
+import type { DealListing, EbaySoldSource, PriceQuery, SoldComp } from "@/lib/types";
 
 const API = "https://api.scrydex.com/pokemon/v1/en/cards";
 
@@ -39,12 +41,25 @@ export function scrydexConfigured(): boolean {
   return Boolean(process.env.SCRYDEX_API_KEY?.trim() && process.env.SCRYDEX_TEAM_ID?.trim());
 }
 
+interface ScrydexTrend {
+  price_change?: number;
+  percent_change?: number;
+}
+
 interface ScrydexPrice {
   condition?: string;
   type?: string;
   low?: number | null;
+  mid?: number | null;
+  high?: number | null;
   market?: number | null;
   currency?: string;
+  grade?: string;
+  company?: string;
+  is_perfect?: boolean;
+  is_signed?: boolean;
+  is_error?: boolean;
+  trends?: { days_30?: ScrydexTrend };
 }
 
 interface ScrydexMarketplace {
@@ -82,6 +97,16 @@ interface CacheEntry {
   cards: ScrydexCard[];
 }
 
+export interface ScrydexGradeQuote {
+  company: string;
+  grade: string;
+  market: number;
+  low: number | null;
+  mid: number | null;
+  high: number | null;
+  trend30: number | null;
+}
+
 export interface CatalogCard {
   id: string;
   name: string;
@@ -98,6 +123,8 @@ export interface CatalogCard {
   tcgplayerUrl: string | null;
   updatedAt: string | null;
   ask: number | null;
+  otherConditions: { condition: string; market: number }[];
+  grades: ScrydexGradeQuote[];
 }
 
 let watchCache: CacheEntry | null = null;
@@ -221,7 +248,59 @@ function nmMarket(variant: ScrydexVariant): { market: number; low: number | null
   return null;
 }
 
-function pickVariant(card: ScrydexCard): { finish: string; market: number; low: number | null; url: string | null } | null {
+const GRADE_SLOTS: { company: string; grade: string }[] = [
+  { company: "PSA", grade: "10" },
+  { company: "BGS", grade: "10" },
+  { company: "CGC", grade: "10" },
+  { company: "PSA", grade: "9" },
+];
+
+function plainSlab(price: ScrydexPrice): boolean {
+  return !price.is_perfect && !price.is_signed && !price.is_error;
+}
+
+function gradedQuotes(variant: ScrydexVariant): ScrydexGradeQuote[] {
+  const prices = (variant.prices ?? []).filter(
+    (price) => price.type === "graded" && (!price.currency || price.currency === "USD") && plainSlab(price),
+  );
+  const quotes: ScrydexGradeQuote[] = [];
+  for (const slot of GRADE_SLOTS) {
+    const price = prices.find(
+      (entry) => entry.company?.toUpperCase() === slot.company && String(entry.grade) === slot.grade && (entry.market ?? 0) > 0,
+    );
+    if (!price || price.market == null) continue;
+    quotes.push({
+      company: slot.company,
+      grade: slot.grade,
+      market: price.market,
+      low: typeof price.low === "number" ? price.low : null,
+      mid: typeof price.mid === "number" ? price.mid : null,
+      high: typeof price.high === "number" ? price.high : null,
+      trend30: typeof price.trends?.days_30?.percent_change === "number" ? price.trends.days_30.percent_change : null,
+    });
+  }
+  return quotes;
+}
+
+function otherRawConditions(variant: ScrydexVariant): { condition: string; market: number }[] {
+  const rows: { condition: string; market: number }[] = [];
+  for (const price of variant.prices ?? []) {
+    if (price.type && price.type !== "raw") continue;
+    if (price.currency && price.currency !== "USD") continue;
+    if (!price.condition || price.condition === "NM") continue;
+    if (typeof price.market !== "number" || price.market <= 0) continue;
+    rows.push({ condition: price.condition, market: price.market });
+  }
+  return rows;
+}
+
+function pickVariant(card: ScrydexCard): {
+  finish: string;
+  market: number;
+  low: number | null;
+  url: string | null;
+  variant: ScrydexVariant;
+} | null {
   const variants = card.variants ?? [];
   const ranked = [...variants].sort((a, b) => {
     const aName = a.name ?? "";
@@ -242,9 +321,23 @@ function pickVariant(card: ScrydexCard): { finish: string; market: number; low: 
       market: quote.market,
       low: quote.low,
       url: marketplace?.purchase_url ?? null,
+      variant,
     };
   }
   return null;
+}
+
+function gradesForCard(card: ScrydexCard, preferred: ScrydexVariant | null): ScrydexGradeQuote[] {
+  if (preferred) {
+    const direct = gradedQuotes(preferred);
+    if (direct.length > 0) return direct;
+  }
+  const variants = [...(card.variants ?? [])].sort((a, b) => Number(firstEdition(a.name ?? "")) - Number(firstEdition(b.name ?? "")));
+  for (const variant of variants) {
+    const quotes = gradedQuotes(variant);
+    if (quotes.length > 0) return quotes;
+  }
+  return [];
 }
 
 function saneAsk(market: number, low: number | null): number | null {
@@ -284,6 +377,8 @@ function toCatalog(card: ScrydexCard): CatalogCard {
     tcgplayerUrl: picked?.url ?? null,
     updatedAt: null,
     ask: market != null && picked ? saneAsk(market, picked.low) : null,
+    otherConditions: picked ? otherRawConditions(picked.variant) : [],
+    grades: gradesForCard(card, picked?.variant ?? null),
   };
 }
 
@@ -342,6 +437,98 @@ export async function listCatalogDeals(query: PriceQuery): Promise<DealListing[]
     .map(dealFromCatalog)
     .filter((deal): deal is DealListing => Boolean(deal))
     .sort((a, b) => b.discountPercent - a.discountPercent || b.savings - a.savings);
+}
+
+interface ScrydexListing {
+  id?: string;
+  source?: string;
+  title?: string;
+  company?: string;
+  grade?: string;
+  url?: string;
+  price?: number;
+  currency?: string;
+  sold_at?: string;
+}
+
+const listingCache = new Map<string, { expires: number; source: EbaySoldSource }>();
+
+function soldAtIso(value: string | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value.replace(/\//g, "-"));
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+/**
+ * Documented sold listings: GET /pokemon/v1/cards/{id}/listings.
+ * `price` is the sold price and `sold_at` is the sale date. Scrydex says
+ * graded eBay history is available and raw sold rows may still be absent.
+ */
+export async function loadScrydexSold(card: CatalogCard): Promise<EbaySoldSource> {
+  const cached = listingCache.get(card.id);
+  if (cached && cached.expires > Date.now()) return cached.source;
+  const url = new URL(`https://api.scrydex.com/pokemon/v1/cards/${encodeURIComponent(card.id)}/listings`);
+  url.searchParams.set("source", "ebay");
+  url.searchParams.set("days", "90");
+  url.searchParams.set("page_size", "20");
+  try {
+    const response = await serverGet(url, headers());
+    if (response.status === 401 || response.status === 403) {
+      throw new ScrydexConfigError("Scrydex refused this key while loading sold listings.");
+    }
+    if (response.status < 200 || response.status >= 300) {
+      return blankEbaySold("unavailable", `Scrydex sold listings returned ${response.status}.`);
+    }
+    const body = JSON.parse(response.text) as { data?: ScrydexListing[] };
+    const hits = (body.data ?? []).flatMap((listing) => {
+      if (listing.currency && listing.currency !== "USD") return [];
+      if (typeof listing.price !== "number" || listing.price <= 0) return [];
+      const title = listing.title?.trim() || [listing.company, listing.grade].filter(Boolean).join(" ") || "Sold listing";
+      return [
+        {
+          title,
+          price: roundMoney(listing.price),
+          url: listing.url ?? null,
+          soldAt: soldAtIso(listing.sold_at),
+          graded: Boolean(listing.company || listing.grade),
+        },
+      ];
+    });
+    const prices = trimOutliers(hits.map((hit) => hit.price));
+    const kept = hits.filter((hit) => prices.includes(hit.price));
+    const raw = kept.filter((hit) => !hit.graded);
+    const graded = kept.filter((hit) => hit.graded);
+    const headline = median(prices);
+    const comps: SoldComp[] = kept.slice(0, 3).map((hit) => ({
+      title: hit.title,
+      price: hit.price,
+      url: hit.url,
+      soldAt: hit.soldAt,
+    }));
+    const source: EbaySoldSource = {
+      ...blankEbaySold(kept.length > 0 ? "live" : "unavailable", ""),
+      status: kept.length > 0 ? "live" : "unavailable",
+      statusNote:
+        kept.length > 0
+          ? "Sold prices from Scrydex listings (source eBay), last 90 days. Graded sales are the ones Scrydex documents today."
+          : "Scrydex returned no sold listings for this card in the last 90 days.",
+      medianPrice: headline,
+      saleCount: kept.length,
+      windowLabel: EBAY_SOLD_WINDOW,
+      rawMedian: median(raw.map((hit) => hit.price)),
+      rawCount: raw.length,
+      gradedMedian: median(graded.map((hit) => hit.price)),
+      gradedCount: graded.length,
+      comps,
+      updatedAt: kept.length > 0 ? new Date().toISOString() : null,
+    };
+    listingCache.set(card.id, { expires: Date.now() + 10 * 60 * 1000, source });
+    return source;
+  } catch (error) {
+    if (error instanceof ScrydexConfigError) throw error;
+    const message = error instanceof Error ? error.message : "Scrydex sold listings did not load.";
+    return blankEbaySold("unavailable", message);
+  }
 }
 
 export async function listCatalogSets(): Promise<string[]> {

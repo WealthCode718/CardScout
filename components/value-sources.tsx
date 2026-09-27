@@ -58,9 +58,12 @@ function GradeList({ grades }: { grades: GradePrice[] }) {
   return (
     <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
       {grades.map((grade) => (
-        <div key={grade.label} className="flex items-baseline justify-between gap-2">
-          <dt className="text-[12px] text-muted">{grade.label}</dt>
-          <dd className="text-[13px] font-semibold text-paper tabular-nums">{formatUsd(grade.price)}</dd>
+        <div key={grade.label} className="min-w-0">
+          <div className="flex items-baseline justify-between gap-2">
+            <dt className="text-[12px] text-muted">{grade.label}</dt>
+            <dd className="text-[13px] font-semibold text-paper tabular-nums">{formatUsd(grade.price)}</dd>
+          </div>
+          {grade.detail ? <p className="text-[10px] leading-snug text-faint">{grade.detail}</p> : null}
         </div>
       ))}
     </dl>
@@ -91,14 +94,14 @@ function TcgplayerBlock({ source }: { source: TcgplayerSource }) {
 }
 
 function PriceChartingBlock({ source }: { source: PriceChartingSource }) {
-  const comingSoon = source.status === "unconfigured";
+  const comingSoon = source.status === "unconfigured" && source.name === "PriceCharting";
   return (
     <SourceShell {...source} statusLabel={comingSoon ? "Coming soon" : undefined}>
       <GradeList grades={source.grades} />
       {source.grades.length === 0 ? (
         <p className="mt-2 text-sm text-muted">
           {comingSoon
-            ? "Coming soon. Not configured. Graded prices stay blank until a PriceCharting token is added."
+            ? "Coming soon. Not configured. Graded prices stay blank until Scrydex sends them or a PriceCharting token is added."
             : "No grade prices in this box."}
         </p>
       ) : null}

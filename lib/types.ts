@@ -19,6 +19,8 @@ export interface ProviderInfo {
 export interface GradePrice {
   label: string;
   price: number;
+  /** Low, mid, and high when the source sends them. */
+  detail?: string;
 }
 
 export interface SoldComp {

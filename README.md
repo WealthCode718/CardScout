@@ -52,9 +52,9 @@ The corner badge says **Live prices on** when the live call worked. The big numb
 
 | Box | Best for | Keep in mind |
 | --- | --- | --- |
-| **Scrydex market** | Raw (ungraded) English singles | Near Mint USD average from US sources. It is not a TCGPlayer-only market field. A TCGPlayer link shows up when Scrydex lists that marketplace. A spike can lag. |
-| **PriceCharting** | Graded slabs (PSA, BGS). Coming soon. | The slot stays. Until `PRICECHARTING_TOKEN` is set, the chip says **Coming soon** and the box says it is not configured. No graded prices are invented. |
-| **eBay Sold & Completed** | What buyers actually paid, raw or graded | A single auction can jump when people bid against each other. |
+| **Scrydex market** | Raw (ungraded) English singles | Near Mint USD average from US sources, plus other conditions when Scrydex sends them. The link is the TCGPlayer purchase URL on that variant. A spike can lag. |
+| **Scrydex graded** | PSA, BGS, and CGC slabs | Market, low, mid, and high from `include=prices`, plus a 30-day trend when present. If the plan omits grades, the box stays blank. `PRICECHARTING_TOKEN` is only a backup. |
+| **Sold listings (via Scrydex)** | What buyers paid | Scrydex card listings (`source=ebay`, last 90 days). Direct eBay Marketplace Insights is added when eBay keys are set. Browse asking prices are not used. |
 
 Each box has a chip: **Live**, **Coming soon**, **Not configured**, or **Didn't load**. A missing key does not get a made-up price. **Practice** appears only on the emergency fallback screen, after a live call fails.
 
@@ -72,9 +72,10 @@ Card names and pictures are there so you can tell printings apart. CardScout is 
 
 | Source | What you get | Key |
 | --- | --- | --- |
-| Scrydex market | Raw English Near Mint price. The `market` field averages US sources, so a spike can lag. | Paid plan. `SCRYDEX_API_KEY` and `SCRYDEX_TEAM_ID`. |
-| eBay sold | Completed sales from about the last 90 days: median, count, raw vs graded. | `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`, plus Marketplace Insights access. |
-| PriceCharting (deferred) | Graded slot stays in the UI. Live grades load only after a token is added. | `PRICECHARTING_TOKEN` later. Until then the box says coming soon / not configured. |
+| Scrydex market | Raw English Near Mint price, other conditions, and PSA/BGS/CGC grades when the plan includes them. | Paid plan. `SCRYDEX_API_KEY` and `SCRYDEX_TEAM_ID`. Prices need `include=prices`. |
+| Scrydex sold listings | Historical sold rows for a card, documented as sold prices. Graded eBay sales are the ones Scrydex ships today. | Same Scrydex key and team ID. |
+| eBay sold (secondary) | Direct completed sales from about the last 90 days, if Scrydex listings are empty or as an extra median. | `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`, plus Marketplace Insights access. |
+| PriceCharting (backup) | Used only when Scrydex did not return graded prices and this token is set. | `PRICECHARTING_TOKEN` later. |
 
 eBay Buy It Now asks are not sold prices and are not the Deals baseline. PriceCharting’s API, when a token is added later, returns current grades only. CardScout links to the history chart and does not draw a fake one.
 
@@ -117,7 +118,9 @@ Scrydex is the successor to the Pokémon TCG API. CardScout calls `https://api.s
 
 Prices require a paid plan. A request with no key returns 401. [Auth docs](https://scrydex.com/docs/getting-started/authentication) say you need a plan, a team ID, and an API key. [Starter](https://scrydex.com/pricing) is $29/month, includes 5,000 credits, and includes raw prices. Most requests cost 1 credit. CardScout caches a search for several minutes. Scrydex's FAQ says graded prices and history start on higher plans. This app only reads the raw Near Mint `market`, so Starter is the plan that covers the raw box.
 
-The `market` field is a USD average across US sources. It is not labeled as TCGPlayer's own market price. A variant can still include a TCGPlayer purchase link, and Values uses that link when it is present. Docs: [pricing data](https://scrydex.com/docs/getting-started/prices).
+The `market` field is a USD average across US sources. It is not labeled as TCGPlayer's own market price. A variant can still include a TCGPlayer purchase URL, and Values uses that link when it is present. The same `include=prices` payload carries raw conditions (NM, LP, MP, HP, DM) and graded PSA, BGS, and CGC market/low/mid/high, plus trends. Docs: [pricing data](https://scrydex.com/docs/getting-started/prices) and [Pokémon API](https://scrydex.com/docs/pokemon/api-reference).
+
+Sold history for a card is `GET /pokemon/v1/cards/{id}/listings` ([listings](https://scrydex.com/docs/pokemon/listings)). CardScout asks for `source=ebay` and the last 90 days. Those rows are the primary sold comps. If `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` are set, Marketplace Insights is the secondary direct eBay search. Browse asking prices are not used.
 
 1. Register at [scrydex.com/register](https://scrydex.com/register) and subscribe at [scrydex.com/pricing](https://scrydex.com/pricing).
 2. Create a team and copy the team ID. Generate an API key.
