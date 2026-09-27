@@ -1,110 +1,115 @@
-import { formatUsd } from "@/lib/format";
-import { blankPriceCharting, TCGPLAYER_COPY } from "@/lib/prices/copy";
+import type { CatalogCard } from "@/lib/prices/catalog";
+import { TCGPLAYER_COPY } from "@/lib/prices/copy";
+import { ebayConfigured } from "@/lib/prices/ebay-auth";
 import { loadEbaySold } from "@/lib/prices/ebay-sold";
-import { loadPriceCharting, priceChartingConfigured } from "@/lib/prices/pricecharting";
-import {
-  listCatalogDeals,
-  listCatalogSets,
-  loadScrydexSold,
-  searchCatalog,
-  type CatalogCard,
-  type ScrydexGradeQuote,
-} from "@/lib/prices/scrydex-provider";
-import type { CardSearchResult, CardValue, DealListing, EbaySoldSource, GradePrice, PriceChartingSource, PriceProvider, PriceQuery } from "@/lib/types";
+import { TcgapiConfigError, listCatalogDeals, listCatalogSets, searchCatalog, tcgapiConfigured } from "@/lib/prices/tcgapi-provider";
+import type { CardSearchResult, CardValue, DealListing, EbaySoldSource, PriceChartingSource, PriceProvider, PriceQuery } from "@/lib/types";
 
-/**
- * PriceCharting allows about one call per second. A short list keeps the page
- * inside a normal server timeout. Results are cached per printing after that.
- */
-const PRICECHARTING_CARD_CAP = 4;
-const DEFAULT_CARD_CAP = 8;
+const CARD_CAP = 8;
 
-function cardCap(): number {
-  return priceChartingConfigured() ? PRICECHARTING_CARD_CAP : DEFAULT_CARD_CAP;
+const MARKET_NAME = "TCGPlayer market (via tcgapi.dev)";
+const GRADED_NAME = "Graded comps (from eBay sold titles)";
+const SOLD_NAME = "eBay sold comps";
+
+function queryCard(query: PriceQuery): CatalogCard {
+  const name = query.name?.trim() || "Pokemon card";
+  return {
+    id: `ebay-query-${name.toLowerCase()}`,
+    name,
+    setName: query.set?.trim() || "",
+    setId: "",
+    numberLabel: "",
+    rarity: "",
+    imageUrl: "",
+    marketPrice: null,
+    lowPrice: null,
+    highPrice: null,
+    finish: null,
+    finishLabel: null,
+    tcgplayerUrl: null,
+    updatedAt: null,
+    ask: null,
+  };
 }
 
-function gradeDetail(quote: ScrydexGradeQuote): string | undefined {
-  const parts = [
-    quote.low != null ? `low ${formatUsd(quote.low)}` : "",
-    quote.mid != null ? `mid ${formatUsd(quote.mid)}` : "",
-    quote.high != null ? `high ${formatUsd(quote.high)}` : "",
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : undefined;
+function marketSource(card: CatalogCard): CardValue["sources"]["tcgplayer"] {
+  const live = tcgapiConfigured() && card.marketPrice != null;
+  return {
+    id: "tcgplayer",
+    ...TCGPLAYER_COPY,
+    name: MARKET_NAME,
+    caveat: "TCGPlayer's market price is the median of recent sales, so a sudden spike can take a while to show up.",
+    status: live ? "live" : tcgapiConfigured() ? "unavailable" : "unconfigured",
+    statusNote: live
+      ? "English raw market and low list price from tcgapi.dev, which reads TCGPlayer. Free tier is 100 requests a day, so this result is cached."
+      : tcgapiConfigured()
+        ? "tcgapi.dev had no market price for this printing."
+        : "Not configured. Add TCGAPI_API_KEY from https://tcgapi.dev/ (free key, 100 requests a day). No market price is invented.",
+    marketPrice: live ? card.marketPrice : null,
+    lowPrice: live ? card.lowPrice : null,
+    finishLabel: card.finishLabel ? `English · ${card.finishLabel}` : "English raw",
+    url: card.tcgplayerUrl,
+    updatedAt: card.updatedAt,
+  };
 }
 
-function scrydexGraded(card: CatalogCard): PriceChartingSource | null {
-  if (card.grades.length === 0) return null;
-  const grades: GradePrice[] = card.grades.map((quote) => ({
-    label: `${quote.company} ${quote.grade}`,
-    price: quote.market,
-    detail: gradeDetail(quote),
-  }));
-  const psa10 = card.grades.find((quote) => quote.company === "PSA" && quote.grade === "10");
-  const trend =
-    psa10?.trend30 != null
-      ? ` PSA 10 market is ${psa10.trend30 > 0 ? "up" : "down"} ${Math.abs(psa10.trend30)}% over 30 days.`
-      : "";
+function gradedSource(sold: EbaySoldSource): PriceChartingSource {
+  const grades = sold.titleGrades ?? [];
+  if (!ebayConfigured()) {
+    return {
+      id: "pricecharting",
+      name: GRADED_NAME,
+      role: "PSA, BGS, and CGC medians taken from sold listing titles.",
+      caveat: "A title can name a grade the card does not have. This is not a PriceCharting price.",
+      status: "unconfigured",
+      statusNote:
+        "Not configured. Graded numbers are medians of eBay sold titles that say PSA, BGS, or CGC. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET. No graded prices are invented.",
+      grades: [],
+      url: null,
+      updatedAt: null,
+    };
+  }
+  if (grades.length === 0) {
+    return {
+      id: "pricecharting",
+      name: GRADED_NAME,
+      role: "PSA, BGS, and CGC medians taken from sold listing titles.",
+      caveat: "A title can name a grade the card does not have. This is not a PriceCharting price.",
+      status: "unavailable",
+      statusNote: "No PSA, BGS, or CGC sales were in this eBay sold search. No graded prices are invented.",
+      grades: [],
+      url: sold.searchUrl,
+      updatedAt: sold.updatedAt,
+    };
+  }
   return {
     id: "pricecharting",
-    name: "Scrydex graded",
-    role: "Best for graded slabs (PSA, BGS, CGC).",
-    caveat: "A single sale can pull a grade. These are Scrydex market figures for this finish.",
+    name: GRADED_NAME,
+    role: "PSA, BGS, and CGC medians taken from sold listing titles.",
+    caveat: "A title can name a grade the card does not have. This is not a PriceCharting price.",
     status: "live",
-    statusNote: `Market, low, mid, and high from Scrydex graded prices.${trend} PriceCharting is not required for these numbers.`,
+    statusNote: "Each number is the median sold price of titles that name that company and grade.",
     grades,
-    url: null,
-    updatedAt: null,
+    url: sold.searchUrl,
+    updatedAt: sold.updatedAt,
   };
 }
 
-async function gradedSource(card: CatalogCard): Promise<PriceChartingSource> {
-  const fromScrydex = scrydexGraded(card);
-  if (fromScrydex) return fromScrydex;
-  if (priceChartingConfigured()) return loadPriceCharting(card);
-  return blankPriceCharting(
-    "unconfigured",
-    "No PSA, BGS, or CGC prices were in this Scrydex response. Scrydex's FAQ says graded prices start on higher plans. PRICECHARTING_TOKEN can fill this box later. No grades are invented.",
-  );
-}
-
-function mergeSold(scrydex: EbaySoldSource, ebay: EbaySoldSource): EbaySoldSource {
-  if (scrydex.saleCount > 0) {
-    const direct =
-      ebay.status === "live" && ebay.medianPrice != null
-        ? ` eBay direct sold median ${formatUsd(ebay.medianPrice)} (${ebay.saleCount} sales). That search is Marketplace Insights, not Browse asking prices.`
-        : ebay.status === "unconfigured"
-          ? " eBay client keys are not set, so this box is Scrydex sold listings only."
-          : "";
-    return {
-      ...scrydex,
-      name: "Sold listings (via Scrydex)",
-      role: "What buyers paid, from Scrydex's sold-listing history.",
-      caveat: "Scrydex documents these as sold prices, mostly graded eBay sales. A single auction can still spike.",
-      statusNote: `${scrydex.statusNote}${direct}`,
-      searchUrl: ebay.searchUrl,
-    };
-  }
-  if (ebay.status === "live" && ebay.saleCount > 0) {
-    return {
-      ...ebay,
-      statusNote: `Scrydex had no sold listings for this card. ${ebay.statusNote}`,
-    };
-  }
+function soldSource(sold: EbaySoldSource): EbaySoldSource {
   return {
-    ...scrydex,
-    name: "Sold listings (via Scrydex)",
-    role: "What buyers paid, from Scrydex's sold-listing history.",
-    status: scrydex.status === "live" ? "live" : "unavailable",
-    statusNote:
-      ebay.status === "unconfigured"
-        ? "Scrydex returned no sold listings. Direct eBay comps need EBAY_CLIENT_ID and EBAY_CLIENT_SECRET. The Browse API has no sold filter, so asking prices are not shown."
-        : `${scrydex.statusNote} ${ebay.statusNote}`,
-    searchUrl: ebay.searchUrl,
+    ...sold,
+    name: SOLD_NAME,
+    role: "What buyers paid in completed sales, raw or graded.",
+    caveat: "A single auction can jump when people bid against each other. Buy It Now asking prices are not used.",
+    statusNote: ebayConfigured()
+      ? `${sold.statusNote} Browse item search has no sold filter, so these rows are eBay Marketplace Insights completed sales.`
+      : sold.statusNote,
   };
 }
 
-function toCardValue(card: CatalogCard): Promise<CardValue> {
-  return Promise.all([gradedSource(card), loadScrydexSold(card), loadEbaySold(card)]).then(([pricecharting, scrydexSold, ebaySold]) => ({
+async function toCardValue(card: CatalogCard): Promise<CardValue> {
+  const sold = await loadEbaySold(card);
+  return {
     id: card.id,
     name: card.name,
     setName: card.setName,
@@ -112,49 +117,50 @@ function toCardValue(card: CatalogCard): Promise<CardValue> {
     numberLabel: card.numberLabel,
     rarity: card.rarity,
     imageUrl: card.imageUrl,
-    marketPrice: card.marketPrice,
-    lowPrice: card.lowPrice,
-    highPrice: card.highPrice,
+    marketPrice: tcgapiConfigured() ? card.marketPrice : null,
+    lowPrice: tcgapiConfigured() ? card.lowPrice : null,
+    highPrice: null,
     currency: "USD",
-    priceSource: "Scrydex Near Mint market and graded prices, plus sold listings",
+    priceSource: "TCGPlayer market via tcgapi.dev, plus eBay sold comps when those keys are set",
     updatedAt: card.updatedAt,
     sources: {
-        tcgplayer: {
-        id: "tcgplayer",
-        ...TCGPLAYER_COPY,
-        name: "Scrydex market",
-        caveat: "This is the Near Mint USD market average. A sudden spike can take a while to show up.",
-        status: card.marketPrice != null ? "live" : "unavailable",
-        statusNote:
-          card.marketPrice != null
-            ? `English raw Near Mint price from Scrydex (?include=prices). The market field averages US sources. The link is the TCGPlayer purchase URL on that variant.${
-                card.otherConditions.length > 0
-                  ? ` Other conditions: ${card.otherConditions.map((row) => `${row.condition} ${formatUsd(row.market)}`).join(", ")}.`
-                  : ""
-              }`
-            : "No Scrydex Near Mint market price for this printing.",
-        marketPrice: card.marketPrice,
-        lowPrice: card.lowPrice,
-        finishLabel: card.finishLabel ? `English · ${card.finishLabel}` : "English raw",
-        url: card.tcgplayerUrl,
-        updatedAt: card.updatedAt,
-      },
-      pricecharting,
-      ebaySold: mergeSold(scrydexSold, ebaySold),
+      tcgplayer: marketSource(card),
+      pricecharting: gradedSource(sold),
+      ebaySold: soldSource(sold),
     },
-  }));
+  };
+}
+
+function liveDisclaimer(): string {
+  if (tcgapiConfigured() && ebayConfigured()) {
+    return "Live prices are on. The raw number is the TCGPlayer market via tcgapi.dev. Sold comps, and graded medians from those titles, come from eBay. Empty boxes are not filled with practice numbers.";
+  }
+  if (tcgapiConfigured()) {
+    return "Live prices are on for the TCGPlayer market via tcgapi.dev. eBay sold comps and graded title medians need EBAY_CLIENT_ID and EBAY_CLIENT_SECRET. Those boxes stay blank.";
+  }
+  return "Live prices are on for eBay sold comps. The TCGPlayer market needs TCGAPI_API_KEY from tcgapi.dev. No market price is invented.";
 }
 
 export class LivePriceProvider implements PriceProvider {
   readonly id = "live" as const;
-  readonly label = "Scrydex market, grades, and sold listings";
-  readonly live = true;
-  readonly disclaimer =
-    "Live prices are on. Raw and graded numbers come from Scrydex. Sold listings come from Scrydex first. Direct eBay sold comps are added when the eBay client id and secret are set. PriceCharting stays optional. Empty boxes are not filled with practice numbers.";
+  readonly label = "TCGPlayer market via tcgapi.dev, and eBay sold comps";
+  get live(): boolean {
+    return tcgapiConfigured() || ebayConfigured();
+  }
+  get disclaimer(): string {
+    return liveDisclaimer();
+  }
 
   async searchCards(query: PriceQuery): Promise<CardSearchResult> {
+    if (!this.live) throw new TcgapiConfigError();
+    if (!tcgapiConfigured()) {
+      const name = query.name?.trim();
+      if (!name) return { cards: [], matchCount: 0 };
+      const card = await toCardValue(queryCard(query));
+      return { cards: [card], matchCount: 1 };
+    }
     const cards = await searchCatalog(query);
-    const shown = cards.slice(0, cardCap());
+    const shown = cards.slice(0, CARD_CAP);
     return {
       cards: await Promise.all(shown.map((card) => toCardValue(card))),
       matchCount: cards.length,
@@ -162,11 +168,15 @@ export class LivePriceProvider implements PriceProvider {
   }
 
   async listDeals(query: PriceQuery): Promise<DealListing[]> {
+    if (!tcgapiConfigured()) {
+      if (!ebayConfigured()) throw new TcgapiConfigError();
+      return [];
+    }
     return listCatalogDeals(query);
   }
 
   async listSets(): Promise<string[]> {
+    if (!tcgapiConfigured()) return [];
     return listCatalogSets();
   }
 }
-

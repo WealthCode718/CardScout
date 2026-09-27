@@ -1,6 +1,6 @@
 import { DemoPriceProvider } from "@/lib/prices/demo-provider";
 import { LivePriceProvider } from "@/lib/prices/live-provider";
-import { ScrydexConfigError } from "@/lib/prices/scrydex-provider";
+import { TcgapiConfigError } from "@/lib/prices/tcgapi-provider";
 import { sortDeals } from "@/lib/query";
 import type { DealResponse, DealSort, PriceProvider, PriceProviderId, PriceQuery, ValueResponse } from "@/lib/types";
 
@@ -24,7 +24,7 @@ function describe(provider: PriceProvider) {
 function unconfiguredProvider(reason: string) {
   return {
     id: "live" as const,
-    label: "Scrydex market and eBay sold",
+    label: "TCGPlayer market via tcgapi.dev, and eBay sold comps",
     live: false,
     disclaimer: reason,
   };
@@ -41,7 +41,7 @@ export async function getDealResponse(query: PriceQuery, sort: DealSort = "disco
       sets,
     };
   } catch (error) {
-    if (error instanceof ScrydexConfigError) {
+    if (error instanceof TcgapiConfigError) {
       return {
         provider: unconfiguredProvider(error.message),
         fallback: false,
@@ -80,7 +80,7 @@ export async function getValueResponse(query: PriceQuery): Promise<ValueResponse
           : undefined,
     };
   } catch (error) {
-    if (error instanceof ScrydexConfigError) {
+    if (error instanceof TcgapiConfigError) {
       return {
         provider: unconfiguredProvider(error.message),
         fallback: false,

@@ -98,16 +98,12 @@ function PriceChartingBlock({ source }: { source: PriceChartingSource }) {
   return (
     <SourceShell {...source} statusLabel={comingSoon ? "Coming soon" : undefined}>
       <GradeList grades={source.grades} />
-      {source.grades.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">
-          {comingSoon
-            ? "Coming soon. Not configured. Graded prices stay blank until Scrydex sends them or a PriceCharting token is added."
-            : "No grade prices in this box."}
-        </p>
+      {source.grades.length === 0 && source.status === "live" ? (
+        <p className="mt-2 text-sm text-muted">No grade prices in this box.</p>
       ) : null}
       {source.url ? (
         <a href={source.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-[12px] font-semibold text-brass">
-          Price history on PriceCharting
+          {source.name === "PriceCharting" ? "Price history on PriceCharting" : "Matching sold listings on eBay"}
         </a>
       ) : null}
     </SourceShell>

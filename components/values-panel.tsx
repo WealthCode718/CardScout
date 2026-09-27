@@ -43,11 +43,11 @@ export function ValuesPanel({ values }: { values: ValueResponse }) {
 
       {values.cards.length === 0 ? (
         <div className="rounded-2xl bg-panel px-4 py-8 text-center">
-          <p className="font-medium text-paper">{values.provider.live || values.fallback ? "No card found" : "Scrydex is not configured"}</p>
+          <p className="font-medium text-paper">{values.provider.live || values.fallback ? "No card found" : "Live prices are not configured"}</p>
           <p className="mt-1 text-sm text-muted">
             {values.provider.live || values.fallback
               ? "Try a shorter name, like Pikachu, or leave the set blank."
-              : "Add SCRYDEX_API_KEY and SCRYDEX_TEAM_ID. No market prices are invented."}
+              : "Add TCGAPI_API_KEY from tcgapi.dev, or eBay client keys from developer.ebay.com. No prices are invented."}
           </p>
         </div>
       ) : (

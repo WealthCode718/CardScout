@@ -2,9 +2,9 @@ import { blankEbaySold, EBAY_SOLD_COPY, EBAY_SOLD_WINDOW } from "@/lib/prices/co
 import { EBAY_INSIGHTS_SCOPE, ebayAccessToken, ebayConfigured, ebayHost } from "@/lib/prices/ebay-auth";
 import { serverGet } from "@/lib/prices/server-fetch";
 import { median, roundMoney, trimOutliers } from "@/lib/prices/money";
-import type { CatalogCard } from "@/lib/prices/scrydex-provider";
+import type { CatalogCard } from "@/lib/prices/catalog";
 import { junkTitle, looksGraded, titleHasCardName, titleHasSet, titleNumberAgrees } from "@/lib/prices/titles";
-import type { EbaySoldSource, SoldComp } from "@/lib/types";
+import type { EbaySoldSource, GradePrice, SoldComp } from "@/lib/types";
 
 /**
  * Sold comps use eBay Marketplace Insights (`item_sales/search`).
@@ -104,6 +104,36 @@ function closest(hits: SoldHit[], target: number | null, count: number): SoldCom
   return comps;
 }
 
+const GRADE_ORDER = ["PSA 10", "BGS 10", "CGC 10", "PSA 9", "BGS 9.5", "CGC 9.5", "BGS 9", "CGC 9"];
+
+function gradeLabel(title: string): string | null {
+  const match = title.match(/\b(psa|bgs|cgc)\s*([0-9](?:\.[0-9])?)\b/i);
+  if (!match?.[1] || !match[2]) return null;
+  return `${match[1].toUpperCase()} ${match[2]}`;
+}
+
+function titleGrades(hits: SoldHit[]): GradePrice[] {
+  const groups = new Map<string, number[]>();
+  for (const hit of hits) {
+    const label = gradeLabel(hit.title);
+    if (!label) continue;
+    const prices = groups.get(label) ?? [];
+    prices.push(hit.price);
+    groups.set(label, prices);
+  }
+  const grades: GradePrice[] = [];
+  for (const [label, prices] of groups) {
+    const price = median(prices);
+    if (price == null) continue;
+    grades.push({ label, price, detail: `${prices.length} sold ${prices.length === 1 ? "title" : "titles"}` });
+  }
+  return grades.sort((a, b) => {
+    const aIndex = GRADE_ORDER.indexOf(a.label);
+    const bIndex = GRADE_ORDER.indexOf(b.label);
+    return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+  });
+}
+
 function summarize(card: CatalogCard, hits: SoldHit[]): EbaySoldSource {
   const preferred = hits.filter((hit) => titleHasSet(hit.title, card.setName));
   const used = preferred.length >= 3 ? preferred : hits;
@@ -138,6 +168,7 @@ function summarize(card: CatalogCard, hits: SoldHit[]): EbaySoldSource {
     searchUrl: ebaySoldSearchUrl(card),
     comps: closest(kept, headline, 3),
     updatedAt: new Date().toISOString(),
+    titleGrades: titleGrades(kept),
   };
 }
 

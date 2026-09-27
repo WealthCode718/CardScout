@@ -73,6 +73,8 @@ export interface EbaySoldSource {
   searchUrl: string | null;
   comps: SoldComp[];
   updatedAt: string | null;
+  /** Medians of sold titles that name PSA, BGS, or CGC. Not a slab price guide. */
+  titleGrades?: GradePrice[];
 }
 
 export interface CardSources {
