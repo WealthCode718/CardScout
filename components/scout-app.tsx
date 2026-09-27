@@ -12,6 +12,35 @@ const TAB_LABELS: { id: TabId; label: string }[] = [
   { id: "news", label: "News" },
 ];
 
+function PriceModeBadge({
+  query,
+  deals,
+  values,
+}: {
+  query: ScoutQuery;
+  deals: DealResponse | null;
+  values: ValueResponse | null;
+}) {
+  if (query.tab === "news") {
+    return (
+      <p className="mt-1 shrink-0 rounded-full bg-brass/15 px-2.5 py-1 text-[11px] font-semibold text-brass ring-1 ring-brass/30">
+        News
+      </p>
+    );
+  }
+  const payload = query.tab === "values" ? values : deals;
+  const liveOn = Boolean(payload?.provider.live && !payload.fallback);
+  return (
+    <p
+      className={`mt-1 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${
+        liveOn ? "bg-lime/15 text-lime ring-lime/40" : "bg-coral/15 text-coral ring-coral/40"
+      }`}
+    >
+      {liveOn ? "Live prices on" : "Practice fallback"}
+    </p>
+  );
+}
+
 export function ScoutApp({
   query,
   deals,
@@ -34,9 +63,7 @@ export function ScoutApp({
             <p className="font-display text-[2rem] leading-none tracking-tight text-paper">CardScout</p>
             <p className="mt-2 max-w-[18rem] text-sm leading-snug text-muted">Spot the deal before it goes in the binder.</p>
           </div>
-          <p className="mt-1 shrink-0 rounded-full bg-brass/15 px-2.5 py-1 text-[11px] font-semibold text-brass ring-1 ring-brass/30">
-            {query.tab === "news" ? "News" : deals?.provider.live || values?.provider.live ? "Live prices" : "Sample prices"}
-          </p>
+          <PriceModeBadge query={query} deals={deals} values={values} />
         </div>
       </header>
       <nav className="sticky top-0 z-20 bg-ink/95 px-4 py-3 backdrop-blur" aria-label="Sections">
@@ -76,8 +103,8 @@ export function ScoutApp({
         </div>
         <footer className="mt-8 border-t border-white/10 pt-4 text-[11px] leading-relaxed text-faint">
           CardScout is a fan-made price scout for families. It is not affiliated with Nintendo, The Pokémon Company, TPCi,
-          eBay, TCGPlayer, or PriceCharting. Card names and pictures are shown so you can tell printings apart. Sample
-          mode is for practice, not for buying or selling.
+          eBay, TCGPlayer, or PriceCharting. Card names and pictures are shown so you can tell printings apart. Practice
+          numbers show up only when a live price call fails.
         </footer>
       </main>
     </>

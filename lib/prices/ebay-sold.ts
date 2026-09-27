@@ -1,5 +1,6 @@
 import { blankEbaySold, EBAY_SOLD_COPY, EBAY_SOLD_WINDOW } from "@/lib/prices/copy";
 import { EBAY_INSIGHTS_SCOPE, ebayAccessToken, ebayConfigured, ebayHost } from "@/lib/prices/ebay-auth";
+import { serverGet } from "@/lib/prices/server-fetch";
 import { median, roundMoney, trimOutliers } from "@/lib/prices/money";
 import type { CatalogCard } from "@/lib/prices/pokemontcg-provider";
 import { junkTitle, looksGraded, titleHasCardName, titleHasSet, titleNumberAgrees } from "@/lib/prices/titles";
@@ -142,24 +143,20 @@ async function searchSold(card: CatalogCard, token: string): Promise<EbaySale[]>
   url.searchParams.set("category_ids", CCG_SINGLES_CATEGORY);
   url.searchParams.set("limit", "50");
   url.searchParams.set("filter", "priceCurrency:USD");
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
-      Accept: "application/json",
-    },
-    signal: AbortSignal.timeout(12_000),
-    cache: "no-store",
+  const response = await serverGet(url, {
+    Authorization: `Bearer ${token}`,
+    "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+    Accept: "application/json",
   });
   if (response.status === 401 || response.status === 403) {
     blockedReason =
       "eBay sold search needs Marketplace Insights access on this app. Asking prices stay off this box.";
     throw new Error(blockedReason);
   }
-  if (!response.ok) {
+  if (response.status < 200 || response.status >= 300) {
     throw new Error(`eBay sold search failed (${response.status}).`);
   }
-  const body = (await response.json()) as { itemSales?: EbaySale[] };
+  const body = JSON.parse(response.text) as { itemSales?: EbaySale[] };
   return body.itemSales ?? [];
 }
 
@@ -167,7 +164,7 @@ export async function loadEbaySold(card: CatalogCard): Promise<EbaySoldSource> {
   if (!ebayConfigured()) {
     return blankEbaySold(
       "unconfigured",
-      "Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET. Sold prices also need eBay to allow Marketplace Insights for the app.",
+      "Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET from an eBay developer app (client credentials). Sold prices also need eBay to allow Marketplace Insights for that app.",
     );
   }
   if (blockedReason) return blankEbaySold("unavailable", blockedReason);

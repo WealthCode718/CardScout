@@ -1,4 +1,5 @@
 import { matchesText, underMarket } from "@/lib/prices/discount";
+import { serverGet } from "@/lib/prices/server-fetch";
 import type { DealListing, PriceQuery } from "@/lib/types";
 
 const API = "https://api.pokemontcg.io/v2/cards";
@@ -97,17 +98,13 @@ async function fetchCards(lucene: string, pageSize: number): Promise<TcgCard[]> 
   url.searchParams.set("q", lucene);
   url.searchParams.set("pageSize", String(pageSize));
   url.searchParams.set("orderBy", "-set.releaseDate");
-  const response = await fetch(url, {
-    headers: headers(),
-    signal: AbortSignal.timeout(12_000),
-    cache: "no-store",
-  });
-  if (!response.ok) {
+  const response = await serverGet(url, headers());
+  if (response.status < 200 || response.status >= 300) {
     throw new Error(
       `Pokémon TCG API returned ${response.status}. A free key from dev.pokemontcg.io can help if you are being rate limited.`,
     );
   }
-  const body = (await response.json()) as { data?: TcgCard[] };
+  const body = JSON.parse(response.text) as { data?: TcgCard[] };
   const cards = body.data ?? [];
   queryCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, cards });
   return cards;

@@ -26,7 +26,11 @@ export function ValuesPanel({ values }: { values: ValueResponse }) {
 
       <SourceNote
         tone={values.fallback ? "warn" : "calm"}
-        title={values.fallback ? "Live prices did not load, so these are sample estimates." : values.provider.disclaimer}
+        title={
+          values.fallback
+            ? "Live prices did not load. These are practice numbers until the live call works."
+            : values.provider.disclaimer
+        }
         detail={values.fallback ? values.fallbackReason : undefined}
       />
 

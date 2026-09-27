@@ -23,7 +23,11 @@ export function DealsPanel({ deals }: { deals: DealResponse }) {
 
       <SourceNote
         tone={deals.fallback ? "warn" : "calm"}
-        title={deals.fallback ? "Live prices did not load, so these are sample estimates." : deals.provider.disclaimer}
+        title={
+          deals.fallback
+            ? "Live prices did not load. These are practice numbers until the live call works."
+            : deals.provider.disclaimer
+        }
         detail={deals.fallback ? deals.fallbackReason : formatPriceDate(pricedOn) ? `Market figures dated ${formatPriceDate(pricedOn)}.` : undefined}
       />
 

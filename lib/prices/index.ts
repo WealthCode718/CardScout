@@ -3,17 +3,12 @@ import { LivePriceProvider } from "@/lib/prices/live-provider";
 import { sortDeals } from "@/lib/query";
 import type { DealResponse, DealSort, PriceProvider, PriceProviderId, PriceQuery, ValueResponse } from "@/lib/types";
 
-/** Older configs used `pokemontcg` or `ebay` as the only source. Both now mean live mode. */
-export function resolvePriceMode(raw = process.env.PRICE_PROVIDER): PriceProviderId {
-  const choice = (raw ?? "demo").trim().toLowerCase();
-  if (choice === "live" || choice === "pokemontcg" || choice === "pokemon" || choice === "tcg" || choice === "ebay") {
-    return "live";
-  }
-  return "demo";
-}
-
+/**
+ * Live prices are the product. Practice cards are used only inside the catch
+ * blocks below, after a live call fails. PRICE_PROVIDER is not a demo switch.
+ */
 export function getPriceProvider(): PriceProvider {
-  return resolvePriceMode() === "live" ? new LivePriceProvider() : new DemoPriceProvider();
+  return new LivePriceProvider();
 }
 
 function describe(provider: PriceProvider) {

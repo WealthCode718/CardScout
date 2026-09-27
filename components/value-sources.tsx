@@ -95,7 +95,7 @@ function PriceChartingBlock({ source }: { source: PriceChartingSource }) {
       {source.grades.length === 0 ? <p className="mt-2 text-sm text-muted">No grade prices in this box.</p> : null}
       {source.url ? (
         <a href={source.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-[12px] font-semibold text-brass">
-          See it on PriceCharting
+          Price history on PriceCharting
         </a>
       ) : null}
     </SourceShell>

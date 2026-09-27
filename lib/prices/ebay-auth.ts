@@ -1,3 +1,5 @@
+import { serverPost } from "@/lib/prices/server-fetch";
+
 interface EbayToken {
   token: string;
   expires: number;
@@ -25,23 +27,26 @@ function keys(): { id: string; secret: string } {
 
 async function requestToken(scope: string): Promise<string> {
   const { id, secret } = keys();
-  const response = await fetch(`${ebayHost()}/identity/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
+  const response = await serverPost(
+    new URL(`${ebayHost()}/identity/v1/oauth2/token`),
+    `grant_type=client_credentials&scope=${encodeURIComponent(scope)}`,
+    {
       Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: `grant_type=client_credentials&scope=${encodeURIComponent(scope)}`,
-    signal: AbortSignal.timeout(12_000),
-    cache: "no-store",
-  });
-  const body = (await response.json().catch(() => ({}))) as {
+  );
+  let body: {
     access_token?: string;
     expires_in?: number;
     error_description?: string;
     error?: string;
-  };
-  if (!response.ok || !body.access_token) {
+  } = {};
+  try {
+    body = JSON.parse(response.text || "{}") as typeof body;
+  } catch {
+    body = {};
+  }
+  if (response.status < 200 || response.status >= 300 || !body.access_token) {
     const detail = body.error_description || body.error || `status ${response.status}`;
     throw new Error(`eBay login failed (${detail}). Check EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, and EBAY_ENV.`);
   }
@@ -62,5 +67,4 @@ export async function ebayAccessToken(scope: string): Promise<string> {
   return request;
 }
 
-export const EBAY_BROWSE_SCOPE = "https://api.ebay.com/oauth/api_scope";
 export const EBAY_INSIGHTS_SCOPE = "https://api.ebay.com/oauth/api_scope/buy.marketplace.insights";

@@ -1,5 +1,4 @@
 import { TCGPLAYER_COPY } from "@/lib/prices/copy";
-import { ebayAsksConfigured, listEbayAskDeals } from "@/lib/prices/ebay-asks";
 import { loadEbaySold } from "@/lib/prices/ebay-sold";
 import { loadPriceCharting, priceChartingConfigured } from "@/lib/prices/pricecharting";
 import { listCatalogDeals, listCatalogSets, searchCatalog, type CatalogCard } from "@/lib/prices/pokemontcg-provider";
@@ -57,7 +56,7 @@ export class LivePriceProvider implements PriceProvider {
   readonly label = "TCGPlayer, PriceCharting, and eBay sold";
   readonly live = true;
   readonly disclaimer =
-    "Live mode. The market baseline is the TCGPlayer price for a raw English card. On Values, each box says if that source is live, still needs a key, or did not load.";
+    "Live prices are on. The raw market number is TCGPlayer. Graded prices load from PriceCharting when that token is set. Sold comps load from eBay when that app can read completed sales. A box that still needs a key stays empty. It is not filled with a practice number.";
 
   async searchCards(query: PriceQuery): Promise<CardSearchResult> {
     const cards = await searchCatalog(query);
@@ -69,14 +68,7 @@ export class LivePriceProvider implements PriceProvider {
   }
 
   async listDeals(query: PriceQuery): Promise<DealListing[]> {
-    const deals = await listCatalogDeals(query);
-    if (!ebayAsksConfigured()) return deals;
-    try {
-      const asks = await listEbayAskDeals(query);
-      return [...deals, ...asks];
-    } catch {
-      return deals;
-    }
+    return listCatalogDeals(query);
   }
 
   async listSets(): Promise<string[]> {
