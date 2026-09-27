@@ -186,7 +186,7 @@ export async function loadPriceCharting(card: CatalogCard): Promise<PriceChartin
   if (!priceChartingConfigured()) {
     const source = blankPriceCharting(
       "unconfigured",
-      "Not configured. Add PRICECHARTING_TOKEN from a paid PriceCharting subscription (pricecharting.com → subscription → API/Download). No graded prices are invented.",
+      "Coming soon. Not configured until PRICECHARTING_TOKEN is set. No graded prices are invented.",
     );
     source.url = historyUrl;
     return source;

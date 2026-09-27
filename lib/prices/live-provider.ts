@@ -28,7 +28,7 @@ function toCardValue(card: CatalogCard): Promise<CardValue> {
     lowPrice: card.lowPrice,
     highPrice: card.highPrice,
     currency: "USD",
-    priceSource: "TCGPlayer market, with PriceCharting and eBay sold when those keys are set",
+    priceSource: "TCGPlayer market via the Pokémon TCG API, plus eBay sold when those keys are set",
     updatedAt: card.updatedAt,
     sources: {
         tcgplayer: {
@@ -54,10 +54,10 @@ function toCardValue(card: CatalogCard): Promise<CardValue> {
 
 export class LivePriceProvider implements PriceProvider {
   readonly id = "live" as const;
-  readonly label = "TCGPlayer, PriceCharting, and eBay sold";
+  readonly label = "TCGPlayer market and eBay sold";
   readonly live = true;
   readonly disclaimer =
-    "Live prices are on. The raw market number is TCGPlayer. Graded prices load from PriceCharting when that token is set. Sold comps load from eBay when that app can read completed sales. A box that still needs a key stays empty. It is not filled with a practice number.";
+    "Live prices are on. The raw market number is TCGPlayer via the Pokémon TCG API. Sold comps load from eBay when the client id and secret are set. Graded PriceCharting prices are coming soon and stay blank until that token is set. Empty boxes are not filled with practice numbers.";
 
   async searchCards(query: PriceQuery): Promise<CardSearchResult> {
     const cards = await searchCatalog(query);

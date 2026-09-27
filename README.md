@@ -3,7 +3,7 @@
 CardScout is a phone-friendly helper for a parent and a kid who trade Pokémon cards. It has three jobs:
 
 1. **Deals** — show cards whose asking price is below the TCGPlayer market price.
-2. **Values** — look up a card with three price boxes: TCGPlayer, PriceCharting, and eBay sold.
+2. **Values** — look up a card. Live boxes are the TCGPlayer market and eBay sold. The graded PriceCharting slot stays on screen and says coming soon until a token is added.
 3. **News** — list recent Pokémon TCG stories, with a link to the original article.
 
 There is no account and no checkout. CardScout only scouts.
@@ -52,11 +52,11 @@ The corner badge says **Live prices on** when the live call worked. The big numb
 
 | Box | Best for | Keep in mind |
 | --- | --- | --- |
-| **TCGPlayer Market Price** | Raw (ungraded) English singles | It averages recent sales, so a sudden spike can take a while to show up. |
-| **PriceCharting** | Graded slabs (PSA, BGS) and a quick overall look | One odd or phantom sale can pull a grade away from the real number. |
+| **TCGPlayer market (via Pokémon TCG API)** | Raw (ungraded) English singles | It averages recent sales, so a sudden spike can take a while to show up. |
+| **PriceCharting** | Graded slabs (PSA, BGS). Coming soon. | The slot stays. Until `PRICECHARTING_TOKEN` is set, the chip says **Coming soon** and the box says it is not configured. No graded prices are invented. |
 | **eBay Sold & Completed** | What buyers actually paid, raw or graded | A single auction can jump when people bid against each other. |
 
-Each box has a chip: **Live**, **Not configured**, or **Didn't load**. A missing key does not get a made-up price. **Practice** appears only on the emergency fallback screen, after a live call fails.
+Each box has a chip: **Live**, **Coming soon**, **Not configured**, or **Didn't load**. A missing key does not get a made-up price. **Practice** appears only on the emergency fallback screen, after a live call fails.
 
 ### News
 
@@ -72,17 +72,17 @@ Card names and pictures are there so you can tell printings apart. CardScout is 
 
 | Source | What you get | Key |
 | --- | --- | --- |
-| TCGPlayer market | Raw English single. The `market` field is an average of recent sales, so a spike can lag. | Optional `POKEMONTCG_API_KEY`. The Pokémon TCG API works without a key, but it may throttle. |
-| PriceCharting | Current slab grades (PSA 10, BGS 10, CGC 10, 9.5, 9, 8, 7, ungraded). | Required `PRICECHARTING_TOKEN` (paid). |
+| TCGPlayer market | Raw English single. The `market` field is an average of recent sales, so a spike can lag. | `POKEMONTCG_API_KEY` on Vercel. The Pokémon TCG API can answer without a key, but production should set one. |
 | eBay sold | Completed sales from about the last 90 days: median, count, raw vs graded. | `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`, plus Marketplace Insights access. |
+| PriceCharting (deferred) | Graded slot stays in the UI. Live grades load only after a token is added. | `PRICECHARTING_TOKEN` later. Until then the box says coming soon / not configured. |
 
-PriceCharting’s API does not include the history chart. CardScout links to the chart on their site and does not draw a fake one. eBay Buy It Now asks are not sold prices and are not the Deals baseline.
+eBay Buy It Now asks are not sold prices and are not the Deals baseline. PriceCharting’s API, when a token is added later, returns current grades only. CardScout links to the history chart and does not draw a fake one.
 
-If the card list itself fails, the screen switches to practice numbers and says so. If PriceCharting or eBay is missing a key, that box says **Not configured** and the TCGPlayer box can still be live.
+If the card list itself fails, the screen switches to practice numbers and says so. A missing eBay key does not replace the TCGPlayer box. The graded box stays coming soon until its token exists.
 
 ## Turn on live prices
 
-TCGPlayer market works with no key. The other two boxes stay empty until you add their keys. Restart the app after any env change.
+On Vercel, live mode is the raw TCGPlayer market plus eBay sold. Set `POKEMONTCG_API_KEY`, `EBAY_CLIENT_ID`, and `EBAY_CLIENT_SECRET`. Leave `PRICECHARTING_TOKEN` blank. Restart or redeploy after any env change.
 
 ### On your computer
 
@@ -97,10 +97,18 @@ Edit `.env.local`, then run `npm run dev` again.
 1. Push this repository to GitHub.
 2. Go to [vercel.com](https://vercel.com) and import the repo.
 3. Vercel should detect **Next.js**. Leave the default build command (`npm run build`).
-4. Open **Settings → Environment Variables** and add the names below for Production (and Preview, if you want the same data there).
-5. Deploy. Open the link on a phone. The corner badge should say **Live prices on**.
+4. Open **Settings → Environment Variables** and add these for Production (and Preview, if you want the same data there):
 
-PriceCharting is paced at one request per second, so the Values route asks for up to 30 seconds (`maxDuration` on the page and `/api/values`).
+| Name | Value |
+| --- | --- |
+| `POKEMONTCG_API_KEY` | Free key from [dev.pokemontcg.io](https://dev.pokemontcg.io/) |
+| `EBAY_CLIENT_ID` | Client ID from [developer.ebay.com](https://developer.ebay.com/) |
+| `EBAY_CLIENT_SECRET` | Client Secret from the same keyset |
+| `EBAY_ENV` | `PRODUCTION` |
+
+5. Deploy. Open the link on a phone. The corner badge should say **Live prices on**. The raw box should show a market price. The eBay box should show sold comps after Marketplace Insights is approved. The graded box should say **Coming soon**.
+
+Do not add `PRICECHARTING_TOKEN` for this deploy. Graded prices are deferred.
 
 ### 1. TCGPlayer market (via Pokémon TCG API)
 
@@ -108,20 +116,11 @@ TCGPlayer is not granting new developer API keys. CardScout does not call TCGPla
 
 [tcgapi.dev](https://tcgapi.dev/) also republishes TCGPlayer marketplace prices and has open signup, but it needs a key and a small daily free quota. The Pokémon TCG API is the better default here: it works with no key, and it already includes the English card identity, pictures, and the TCGPlayer market price.
 
-1. Open [dev.pokemontcg.io](https://dev.pokemontcg.io/) and create a free API key. Skip this if you are fine with the lower no-key rate limit.
-2. Set `POKEMONTCG_API_KEY` to that key.
+1. Open [dev.pokemontcg.io](https://dev.pokemontcg.io/) and create a free API key.
+2. Set `POKEMONTCG_API_KEY` to that key on Vercel.
 3. A deal is the lowest listed price for that finish (holofoil, for example) at least 8% under the market price.
 
-### 2. PriceCharting grades
-
-1. Subscribe at [pricecharting.com](https://www.pricecharting.com/). The Prices API is part of a paid subscription. [API docs](https://www.pricecharting.com/api-documentation).
-2. On the subscription page, open **API/Download** and copy the token.
-3. Set `PRICECHARTING_TOKEN` to that token. CardScout sends it as the `t` parameter.
-4. Prices come back in pennies. Card columns map to PSA 10, BGS 10, CGC 10, grade 9.5, grade 9, grade 8, grade 7, and ungraded.
-5. Their docs say the API and CSV are current values only. Historic points are not in the payload. Use **Price history on PriceCharting** on the card for the chart.
-6. The public documentation token does not return price fields. A paid token is required. CardScout will not invent grades if the token omits them.
-
-### 3. eBay sold and completed
+### 2. eBay sold and completed
 
 1. Open [developer.ebay.com](https://developer.ebay.com/) and create an application.
 2. Create a keyset. Copy the **Client ID** and **Client Secret**. These are the client credentials eBay documents for the Browse API.
@@ -130,12 +129,27 @@ TCGPlayer is not granting new developer API keys. CardScout does not call TCGPla
 5. Sold comps call Marketplace Insights `item_sales/search` with the same client ID and secret, scope `https://api.ebay.com/oauth/api_scope/buy.marketplace.insights`. That is eBay’s sold-item search and covers about the last 90 days.
 6. Marketplace Insights is a limited release. If eBay has not approved the application, the eBay box says the call was refused. CardScout does not scrape eBay.
 
+### 3. PriceCharting grades (deferred)
+
+The graded box stays in Values. `PRICECHARTING_TOKEN` is already wired. Leave it unset until you want slab prices. The chip says **Coming soon** and the box says it is not configured. No grades are invented.
+
+When you turn it on later:
+
+1. Subscribe at [pricecharting.com](https://www.pricecharting.com/). The Prices API is part of a paid subscription. [API docs](https://www.pricecharting.com/api-documentation).
+2. On the subscription page, open **API/Download** and copy the token.
+3. Set `PRICECHARTING_TOKEN` to that token. CardScout sends it as the `t` parameter.
+4. Prices come back in pennies. Card columns map to PSA 10, BGS 10, CGC 10, grade 9.5, grade 9, grade 8, grade 7, and ungraded.
+5. Their docs say the API and CSV are current values only. Historic points are not in the payload. Use **Price history on PriceCharting** on the card for the chart.
+6. The public documentation token does not return price fields. A paid token is required.
+
+PriceCharting is paced at one request per second, so the Values route asks for up to 30 seconds (`maxDuration` on the page and `/api/values`).
+
 Never commit `.env.local`. Only `.env.example` belongs in git, and it has empty keys.
 
 ## Project shape
 
 - Next.js App Router, TypeScript, Tailwind
 - Prices go through `LivePriceProvider` (`lib/prices`). `DemoPriceProvider` runs only after a live call throws.
-- Live mode composes the Pokémon TCG API (TCGPlayer market), the PriceCharting Prices API, and eBay Marketplace Insights
+- Live mode uses the Pokémon TCG API (TCGPlayer market) and eBay Marketplace Insights. PriceCharting stays wired and loads only when `PRICECHARTING_TOKEN` is set.
 - News is fetched on the server from RSS (`lib/news`)
 - JSON for other tools: `/api/deals`, `/api/values`, `/api/news`

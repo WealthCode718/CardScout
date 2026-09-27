@@ -22,6 +22,7 @@ function SourceShell({
   caveat,
   status,
   statusNote,
+  statusLabel,
   children,
 }: {
   name: string;
@@ -29,6 +30,7 @@ function SourceShell({
   caveat: string;
   status: SourceStatus;
   statusNote: string;
+  statusLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -36,7 +38,7 @@ function SourceShell({
       <div className="flex items-start justify-between gap-2">
         <h4 className="text-[13px] font-semibold text-paper">{name}</h4>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${statusClass(status)}`}>
-          {STATUS_LABEL[status]}
+          {statusLabel ?? STATUS_LABEL[status]}
         </span>
       </div>
       <p className="mt-1 text-[12px] leading-snug text-brass">{role}</p>
@@ -89,13 +91,14 @@ function TcgplayerBlock({ source }: { source: TcgplayerSource }) {
 }
 
 function PriceChartingBlock({ source }: { source: PriceChartingSource }) {
+  const comingSoon = source.status === "unconfigured";
   return (
-    <SourceShell {...source}>
+    <SourceShell {...source} statusLabel={comingSoon ? "Coming soon" : undefined}>
       <GradeList grades={source.grades} />
       {source.grades.length === 0 ? (
         <p className="mt-2 text-sm text-muted">
-          {source.status === "unconfigured"
-            ? "Not configured. Graded prices stay blank until a PriceCharting token is added."
+          {comingSoon
+            ? "Coming soon. Not configured. Graded prices stay blank until a PriceCharting token is added."
             : "No grade prices in this box."}
         </p>
       ) : null}
