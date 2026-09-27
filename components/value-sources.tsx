@@ -95,9 +95,11 @@ function TcgplayerBlock({ source }: { source: TcgplayerSource }) {
 
 function PriceChartingBlock({ source }: { source: PriceChartingSource }) {
   const comingSoon = source.status === "unconfigured" && source.name === "PriceCharting";
+  const notConnected = source.status === "unconfigured" && !comingSoon;
   return (
-    <SourceShell {...source} statusLabel={comingSoon ? "Coming soon" : undefined}>
+    <SourceShell {...source} statusLabel={comingSoon ? "Coming soon" : notConnected ? "Not connected" : undefined}>
       <GradeList grades={source.grades} />
+      {notConnected ? <p className="mt-2 text-sm text-muted">eBay sold: not connected yet</p> : null}
       {source.grades.length === 0 && source.status === "live" ? (
         <p className="mt-2 text-sm text-muted">No grade prices in this box.</p>
       ) : null}
@@ -111,18 +113,23 @@ function PriceChartingBlock({ source }: { source: PriceChartingSource }) {
 }
 
 function EbayBlock({ source }: { source: EbaySoldSource }) {
+  const notConnected = source.status === "unconfigured";
   const split = source.rawCount > 0 || source.gradedCount > 0;
   return (
-    <SourceShell {...source}>
-      {source.medianPrice != null ? (
+    <SourceShell {...source} statusLabel={notConnected ? "Not connected" : undefined}>
+      {notConnected ? (
+        <p className="mt-2 text-sm text-muted">eBay sold: not connected yet</p>
+      ) : source.medianPrice != null ? (
         <p className="mt-2 text-xl font-semibold text-paper tabular-nums">{formatUsd(source.medianPrice)}</p>
       ) : (
         <p className="mt-2 text-sm text-muted">No sold median in this box.</p>
       )}
+      {notConnected ? null : (
       <p className="text-[12px] text-muted">
         {source.saleCount > 0 ? `${saleLabel(source.saleCount, "matched")} · ` : ""}
         {source.windowLabel}
       </p>
+      )}
       {split ? (
         <p className="text-[12px] text-muted tabular-nums">
           {source.rawMedian != null ? `Raw ${formatUsd(source.rawMedian)} (${source.rawCount})` : `Raw sales: ${source.rawCount}`}

@@ -199,7 +199,7 @@ export async function loadEbaySold(card: CatalogCard): Promise<EbaySoldSource> {
   if (!ebayConfigured()) {
     return blankEbaySold(
       "unconfigured",
-      "Not configured. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET from developer.ebay.com (client credentials). Sold prices need Marketplace Insights access. The Browse API has no sold filter, so Buy It Now asks are not shown here.",
+      "eBay sold: not connected yet. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET from developer.ebay.com after the app is approved. No sold prices are invented.",
     );
   }
   if (blockedReason) return blankEbaySold("unavailable", blockedReason);

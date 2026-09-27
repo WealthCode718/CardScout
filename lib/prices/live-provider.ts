@@ -63,7 +63,7 @@ function gradedSource(sold: EbaySoldSource): PriceChartingSource {
       caveat: "A title can name a grade the card does not have. This is not a PriceCharting price.",
       status: "unconfigured",
       statusNote:
-        "Not configured. Graded numbers are medians of eBay sold titles that say PSA, BGS, or CGC. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET. No graded prices are invented.",
+        "eBay sold: not connected yet. Graded comps are medians of those sold titles once eBay is connected. No graded prices are invented.",
       grades: [],
       url: null,
       updatedAt: null,
@@ -136,7 +136,7 @@ function liveDisclaimer(): string {
     return "Live prices are on. The raw number is the TCGPlayer market via tcgapi.dev. Sold comps, and graded medians from those titles, come from eBay. Empty boxes are not filled with practice numbers.";
   }
   if (tcgapiConfigured()) {
-    return "Live prices are on for the TCGPlayer market via tcgapi.dev. eBay sold comps and graded title medians need EBAY_CLIENT_ID and EBAY_CLIENT_SECRET. Those boxes stay blank.";
+    return "Live prices are on. The raw number is the TCGPlayer market via tcgapi.dev. eBay sold: not connected yet.";
   }
   return "Live prices are on for eBay sold comps. The TCGPlayer market needs TCGAPI_API_KEY from tcgapi.dev. No market price is invented.";
 }

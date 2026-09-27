@@ -47,7 +47,7 @@ export function ValuesPanel({ values }: { values: ValueResponse }) {
           <p className="mt-1 text-sm text-muted">
             {values.provider.live || values.fallback
               ? "Try a shorter name, like Pikachu, or leave the set blank."
-              : "Add TCGAPI_API_KEY from tcgapi.dev, or eBay client keys from developer.ebay.com. No prices are invented."}
+              : "Add TCGAPI_API_KEY from tcgapi.dev. eBay sold can be connected later. No prices are invented."}
           </p>
         </div>
       ) : (

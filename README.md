@@ -80,11 +80,11 @@ Card names and pictures are there so you can tell printings apart. CardScout is 
 
 eBay Buy It Now asks are not sold prices and are not the Deals baseline.
 
-Live mode is on when `TCGAPI_API_KEY` or the eBay keys are set. A missing key leaves that box **Not configured**. Practice numbers appear only when a configured live call fails.
+Live mode is on when `TCGAPI_API_KEY` is set, even if the eBay keys are still blank. The eBay and graded boxes then say **eBay sold: not connected yet**. Practice numbers appear only when a configured live call fails.
 
 ## Turn on live prices
 
-On Vercel, set `TCGAPI_API_KEY` for the raw market and `EBAY_CLIENT_ID` plus `EBAY_CLIENT_SECRET` for sold comps. Either key turns live mode on. Leave `PRICECHARTING_TOKEN` blank. Restart or redeploy after any env change.
+On Vercel, set `TCGAPI_API_KEY`. That is enough for **Live prices on**. Leave the eBay keys blank until developer approval comes back (about a day). Leave `PRICECHARTING_TOKEN` blank. Restart or redeploy after any env change.
 
 ### On your computer
 
@@ -103,14 +103,23 @@ Edit `.env.local`, then run `npm run dev` again.
 
 | Name | Value |
 | --- | --- |
-| `TCGAPI_API_KEY` | Free key from [tcgapi.dev](https://tcgapi.dev/). Sent as `X-API-Key`. |
+| `TCGAPI_API_KEY` | Free key from [tcgapi.dev](https://tcgapi.dev/). Sent as `X-API-Key`. This key alone turns live mode on. |
+
+5. Deploy. Open the link on a phone. The corner badge should say **Live prices on**. The raw box should show a TCGPlayer market price. The eBay sold box and the graded box should say **eBay sold: not connected yet**.
+
+Do not add `PRICECHARTING_TOKEN` for this deploy. Graded prices are not invented.
+
+### Add eBay later
+
+When the eBay developer app is approved, add these in the same Vercel environment and redeploy:
+
+| Name | Value |
+| --- | --- |
 | `EBAY_CLIENT_ID` | Client ID from [developer.ebay.com](https://developer.ebay.com/) |
 | `EBAY_CLIENT_SECRET` | Client Secret from the same keyset |
 | `EBAY_ENV` | `PRODUCTION` |
 
-5. Deploy. Open the link on a phone. The corner badge should say **Live prices on**. The raw box should show a TCGPlayer market price. The eBay box should show sold comps after Marketplace Insights is approved. Graded numbers appear only when sold titles name PSA, BGS, or CGC.
-
-Do not add `PRICECHARTING_TOKEN` for this deploy. Graded prices are not invented.
+The sold box then fills from Marketplace Insights. Graded numbers appear only when those sold titles name PSA, BGS, or CGC. Until then, those boxes stay on **eBay sold: not connected yet**.
 
 ### 1. TCGPlayer market (via tcgapi.dev)
 
@@ -127,7 +136,7 @@ Do not add `PRICECHARTING_TOKEN` for this deploy. Graded prices are not invented
 3. Set `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, and `EBAY_ENV` (`PRODUCTION` or `SANDBOX`).
 4. The Browse API `item_summary/search` method returns **active** listings. Its `buyingOptions` filter chooses Buy It Now, auction, or best offer. It has no sold, completed, or soldItems filter. CardScout does not treat those asks as sold prices.
 5. Sold comps call Marketplace Insights `item_sales/search` with the same client ID and secret, scope `https://api.ebay.com/oauth/api_scope/buy.marketplace.insights`. That is eBay’s sold-item search and covers about the last 90 days.
-6. Marketplace Insights is a limited release. If eBay has not approved the application, the eBay box says the call was refused. CardScout does not scrape eBay.
+6. Marketplace Insights is a limited release and approval can take about a day. Until the keys are set, the boxes say **eBay sold: not connected yet**. If the keys are set but eBay refuses the call, the box says the call was refused. CardScout does not scrape eBay. Do not wait on this approval to ship the TCGPlayer market.
 
 ### 3. Graded comps, PriceCharting, and Scrydex
 
@@ -139,6 +148,6 @@ Never commit `.env.local`. Only `.env.example` belongs in git, and it has empty 
 
 - Next.js App Router, TypeScript, Tailwind
 - Prices go through `LivePriceProvider` (`lib/prices`). `DemoPriceProvider` runs only after a live call throws.
-- Live mode uses tcgapi.dev for the TCGPlayer market and eBay Marketplace Insights for sold comps. Graded medians are parsed from those sold titles. Scrydex and PriceCharting are not required.
+- Live mode uses tcgapi.dev for the TCGPlayer market as soon as `TCGAPI_API_KEY` is set. eBay Marketplace Insights fills sold comps after `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` are added. Graded medians are parsed from those sold titles. Scrydex and PriceCharting are not required.
 - News is fetched on the server from RSS (`lib/news`)
 - JSON for other tools: `/api/deals`, `/api/values`, `/api/news`

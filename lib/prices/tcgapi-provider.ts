@@ -13,7 +13,7 @@ export class TcgapiConfigError extends Error {
   constructor(message?: string) {
     super(
       message ??
-        "Live prices need a key. Add TCGAPI_API_KEY from https://tcgapi.dev/ (free, 100 requests a day) and EBAY_CLIENT_ID plus EBAY_CLIENT_SECRET from https://developer.ebay.com/. No prices are invented.",
+        "Add TCGAPI_API_KEY from https://tcgapi.dev/ to turn live prices on. eBay sold can be connected later. No prices are invented.",
     );
     this.name = "TcgapiConfigError";
   }
@@ -37,7 +37,19 @@ interface TcgapiCard {
   printing?: string;
   market_price?: number | null;
   low_price?: number | null;
+  price?: number | { market_price?: number | null; low_price?: number | null } | null;
   price_updated_at?: string;
+}
+
+function amount(card: TcgapiCard, field: "market_price" | "low_price"): number | null {
+  const direct = card[field];
+  if (typeof direct === "number" && direct > 0) return direct;
+  if (field === "market_price" && typeof card.price === "number" && card.price > 0) return card.price;
+  if (card.price && typeof card.price === "object") {
+    const nested = card.price[field];
+    if (typeof nested === "number" && nested > 0) return nested;
+  }
+  return null;
 }
 
 interface CacheEntry {
@@ -74,10 +86,10 @@ function productUrl(card: TcgapiCard): string | null {
 
 function toCatalog(card: TcgapiCard): CatalogCard | null {
   const name = card.name?.trim() ?? "";
-  const market = typeof card.market_price === "number" && card.market_price > 0 ? card.market_price : null;
+  const market = amount(card, "market_price");
   if (!name || market == null) return null;
-  if (card.product_type && card.product_type !== "Cards") return null;
-  const low = typeof card.low_price === "number" && card.low_price > 0 ? card.low_price : null;
+  if (card.product_type && card.product_type.trim() !== "Cards") return null;
+  const low = amount(card, "low_price");
   const printing = card.printing?.trim() || null;
   const updated = card.price_updated_at ? new Date(card.price_updated_at) : null;
   return {
@@ -100,7 +112,7 @@ function toCatalog(card: TcgapiCard): CatalogCard | null {
 }
 
 function pickPrinting(rows: TcgapiCard[]): TcgapiCard | null {
-  const priced = rows.filter((row) => typeof row.market_price === "number" && row.market_price > 0);
+  const priced = rows.filter((row) => amount(row, "market_price") != null);
   if (priced.length === 0) return null;
   return [...priced].sort((a, b) => printingRank(a.printing ?? "") - printingRank(b.printing ?? ""))[0] ?? null;
 }
