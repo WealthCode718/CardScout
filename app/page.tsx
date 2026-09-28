@@ -1,7 +1,7 @@
 import { ScoutApp } from "@/components/scout-app";
 import { getNewsResponse } from "@/lib/news";
 import { getDealResponse, getValueResponse } from "@/lib/prices";
-import { firstParam, parseSort, parseTab, type ScoutQuery } from "@/lib/query";
+import { firstParam, parseRadius, parseSort, parseTab, type ScoutQuery } from "@/lib/query";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -17,6 +17,8 @@ export default async function Home({
     name: firstParam(params.name).slice(0, 80),
     set: firstParam(params.set).slice(0, 80),
     sort: parseSort(firstParam(params.sort)),
+    zip: firstParam(params.zip).slice(0, 10),
+    radius: parseRadius(firstParam(params.radius)),
   };
 
   const [deals, values, news] = await Promise.all([

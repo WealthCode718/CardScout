@@ -13,6 +13,8 @@ export function SearchControls(props: {
   setName: string;
   sort: DealSort;
   sets: string[];
+  zip: string;
+  radius: number;
 }) {
   return <SearchForm key={`${props.tab}|${props.name}|${props.setName}|${props.sort}`} {...props} />;
 }
@@ -23,12 +25,16 @@ function SearchForm({
   setName,
   sort,
   sets,
+  zip,
+  radius,
 }: {
   tab: TabId;
   name: string;
   setName: string;
   sort: DealSort;
   sets: string[];
+  zip: string;
+  radius: number;
 }) {
   const router = useRouter();
   const [draftName, setDraftName] = useState(name);
@@ -41,6 +47,8 @@ function SearchForm({
       name: next.name ?? draftName,
       set: next.set === undefined ? (tab === "values" ? draftSet : setName) : next.set,
       sort: next.sort ?? sort,
+      zip,
+      radius,
     });
     startTransition(() => {
       router.push(href, { scroll: false });

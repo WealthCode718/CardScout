@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { DealsPanel } from "@/components/deals-panel";
+import { DropsPanel } from "@/components/drops-panel";
+import { DropsResults } from "@/components/drops-results";
+import { DropsSearch } from "@/components/drops-search";
 import { NewsPanel } from "@/components/news-panel";
 import { SearchControls } from "@/components/search-controls";
 import { ValuesPanel } from "@/components/values-panel";
-import { buildHref, type ScoutQuery } from "@/lib/query";
+import { offlineDrops } from "@/lib/drops/links";
+import { DEFAULT_ZIP, buildHref, type ScoutQuery } from "@/lib/query";
 import type { DealResponse, NewsResponse, TabId, ValueResponse } from "@/lib/types";
 
 const TAB_LABELS: { id: TabId; label: string }[] = [
   { id: "deals", label: "Deals" },
   { id: "values", label: "Values" },
   { id: "news", label: "News" },
+  { id: "drops", label: "Drops" },
 ];
 
 function PriceModeBadge({
@@ -21,10 +26,10 @@ function PriceModeBadge({
   deals: DealResponse | null;
   values: ValueResponse | null;
 }) {
-  if (query.tab === "news") {
+  if (query.tab === "news" || query.tab === "drops") {
     return (
       <p className="mt-1 shrink-0 rounded-full bg-brass/15 px-2.5 py-1 text-[11px] font-semibold text-brass ring-1 ring-brass/30">
-        News
+        {query.tab === "news" ? "News" : "Stores"}
       </p>
     );
   }
@@ -69,7 +74,7 @@ export function ScoutApp({
         </div>
       </header>
       <nav className="sticky top-0 z-20 bg-ink/95 px-4 py-3 backdrop-blur" aria-label="Sections">
-        <div role="tablist" className="grid h-12 grid-cols-3 gap-1 rounded-2xl bg-panel p-1">
+        <div role="tablist" className="grid h-12 grid-cols-4 gap-1 rounded-2xl bg-panel p-1">
           {TAB_LABELS.map((tab) => {
             const selected = query.tab === tab.id;
             return (
@@ -82,7 +87,7 @@ export function ScoutApp({
                 id={`tab-${tab.id}`}
                 aria-selected={selected}
                 aria-controls={`panel-${tab.id}`}
-                className={`flex items-center justify-center rounded-xl text-sm font-semibold ${
+                className={`flex items-center justify-center rounded-xl text-[13px] font-semibold ${
                   selected ? "bg-paper text-ink" : "text-muted"
                 }`}
               >
@@ -93,8 +98,18 @@ export function ScoutApp({
         </div>
       </nav>
       <main id="scout-main" className="px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        {query.tab !== "news" ? (
-          <SearchControls tab={query.tab} name={query.name} setName={query.set} sort={query.sort} sets={deals?.sets ?? []} />
+        {query.tab === "deals" || query.tab === "values" ? (
+          <SearchControls
+            tab={query.tab}
+            name={query.name}
+            setName={query.set}
+            sort={query.sort}
+            sets={deals?.sets ?? []}
+            zip={query.zip}
+            radius={query.radius}
+          />
+        ) : query.tab === "drops" ? (
+          <DropsSearch query={{ ...query, zip: query.zip || DEFAULT_ZIP }} />
         ) : (
           <div className="h-2" />
         )}
@@ -102,11 +117,19 @@ export function ScoutApp({
           {query.tab === "deals" && deals ? <DealsPanel deals={deals} /> : null}
           {query.tab === "values" && values ? <ValuesPanel values={values} /> : null}
           {query.tab === "news" && news ? <NewsPanel news={news} /> : null}
+          {query.tab === "drops" ? (
+            <>
+              <DropsResults key={`${query.zip}|${query.radius}`} zip={query.zip} radius={query.radius} />
+              <noscript>
+                <DropsPanel drops={offlineDrops(query.zip, query.radius)} />
+              </noscript>
+            </>
+          ) : null}
         </div>
         <footer className="mt-8 border-t border-white/10 pt-4 text-[11px] leading-relaxed text-faint">
           CardScout is a fan-made price scout for families. It is not affiliated with Nintendo, The Pokémon Company, TPCi,
-          eBay, TCGPlayer, or PriceCharting. Card names and pictures are shown so you can tell printings apart. Practice
-          numbers show up only when a live price call fails.
+          eBay, TCGPlayer, PriceCharting, Target, Walmart, or GameStop. Card names and pictures are shown so you can tell
+          printings apart. Practice numbers show up only when a live price call fails.
         </footer>
       </main>
     </>
