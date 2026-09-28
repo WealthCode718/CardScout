@@ -1,10 +1,11 @@
 # CardScout
 
-CardScout is a phone-friendly helper for a parent and a kid who trade Pokémon cards. It has three jobs:
+CardScout is a phone-friendly helper for a parent and a kid who trade Pokémon cards. It has four jobs:
 
 1. **Deals** — show cards whose lowest list price is below the TCGPlayer market price.
 2. **Values** — look up a card. Live boxes are the TCGPlayer market and eBay sold. The graded PriceCharting slot stays on screen and says coming soon until a token is added.
 3. **News** — list recent Pokémon TCG stories, with a link to the original article.
+4. **Drops** — find nearby Target, Walmart, and GameStop stores that may carry sealed Pokémon cards.
 
 There is no account and no checkout. CardScout only scouts.
 
@@ -63,6 +64,20 @@ Each box has a chip: **Live**, **Coming soon**, **Not configured**, or **Didn't 
 Headlines come from [PokéBeach](https://www.pokebeach.com/), a long-running Pokémon TCG news site. CardScout reads their public RSS feed on the server (so the phone does not have to talk to the news site directly) and links out to the article.
 
 If that feed cannot be reached, CardScout shows a **saved snapshot** of real PokéBeach headlines from September 27, 2026, and says so on the screen. It does not invent stories.
+
+### Drops
+
+Search a US ZIP code for nearby **Target**, **Walmart**, and **GameStop** stores. The box starts at **11230** (Brooklyn). Pick a distance of 5, 10, 15, 25, or 40 miles. 15 miles is the default.
+
+Each store shows the name, address, and distance, plus:
+
+- **Directions**
+- **Store page**, when the map has that chain’s own page (otherwise a store finder for that address)
+- **Check Pokémon stock**, which opens that chain’s Pokémon TCG search
+
+Walmart’s stock link includes the store number when the map has one, so Walmart can open that store’s search. CardScout still does not know what is on the shelf. Stock changes fast. Confirm in the retailer app or at the store.
+
+Locations come from [OpenStreetMap](https://www.openstreetmap.org/copyright) through the public Overpass API. The ZIP is located with [Nominatim](https://nominatim.org/). If Nominatim is unavailable, CardScout uses [Zippopotam](https://api.zippopotam.us/) for the ZIP center. No API key is required. If the map search does not load, the screen still links to each retailer’s store finder and Pokémon search.
 
 ## Where the numbers come from
 
@@ -150,4 +165,5 @@ Never commit `.env.local`. Only `.env.example` belongs in git, and it has empty 
 - Prices go through `LivePriceProvider` (`lib/prices`). `DemoPriceProvider` runs only after a live call throws.
 - Live mode uses tcgapi.dev for the TCGPlayer market as soon as `TCGAPI_API_KEY` is set. eBay Marketplace Insights fills sold comps after `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` are added. Graded medians are parsed from those sold titles. Scrydex and PriceCharting are not required.
 - News is fetched on the server from RSS (`lib/news`)
-- JSON for other tools: `/api/deals`, `/api/values`, `/api/news`
+- Drops looks up nearby stores on the server (`lib/drops`) and links out to the retailers
+- JSON for other tools: `/api/deals`, `/api/values`, `/api/news`, `/api/drops`

@@ -6,7 +6,7 @@ export default function Error({ reset }: { error: Error & { digest?: string }; r
       <p className="text-xs font-semibold tracking-[0.16em] text-brass uppercase">CardScout</p>
       <h1 className="mt-3 font-display text-3xl text-paper">This screen did not load</h1>
       <p className="mt-3 text-sm leading-relaxed text-muted">
-        Something broke while fetching cards or news. Your collection is fine — try the screen again.
+        Something broke while fetching cards, news, or stores. Your collection is fine — try the screen again.
       </p>
       <button
         type="button"

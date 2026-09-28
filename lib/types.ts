@@ -1,4 +1,4 @@
-export const TABS = ["deals", "values", "news"] as const;
+export const TABS = ["deals", "values", "news", "drops"] as const;
 
 export type TabId = (typeof TABS)[number];
 
@@ -164,6 +164,43 @@ export interface NewsResponse {
   live: boolean;
   sourceNote: string;
   items: NewsItem[];
+}
+
+export type RetailerId = "target" | "walmart" | "gamestop";
+
+export type DropsStatus = "results" | "invalid-zip" | "not-found" | "unavailable";
+
+export interface DropStore {
+  id: string;
+  retailer: RetailerId;
+  name: string;
+  /** Empty when OpenStreetMap has no street address. */
+  address: string;
+  distanceMiles: number;
+  directionsUrl: string;
+  storePageUrl: string;
+  /** True when storePageUrl is that chain’s own store page. */
+  hasStorePage: boolean;
+  stockUrl: string;
+}
+
+export interface DropRetailerGroup {
+  id: RetailerId;
+  label: string;
+  stores: DropStore[];
+  totalInRadius: number;
+  finderUrl: string;
+  stockUrl: string;
+}
+
+export interface DropsResponse {
+  zip: string;
+  radiusMiles: number;
+  placeLabel: string | null;
+  status: DropsStatus;
+  sourceNote: string;
+  stockNote: string;
+  groups: DropRetailerGroup[];
 }
 
 export interface PriceQuery {
