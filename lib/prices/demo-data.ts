@@ -6,7 +6,8 @@
  * files on images.pokemontcg.io.
  *
  * Prices are rounded practice estimates in USD so every screen works with no
- * API key. They are not live shop quotes.
+ * API key. They are not live shop quotes. Values expands each card into
+ * sample TCGPlayer, PriceCharting, and eBay sold boxes (see sample-sources.ts).
  *
  * Evolving Skies #215 is the alternate-art Umbreon VMAX. The public JSON file
  * labels both #214 and #215 as "Rare Rainbow"; #214 is the rainbow rare and

@@ -14,7 +14,8 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: "CardScout",
-  description: "Find Pokémon cards listed under the market price, look up what a card is worth, and read recent TCG news.",
+  description:
+    "Look up Pokémon card values from the TCGPlayer market and eBay sold prices, and read recent TCG news.",
   applicationName: "CardScout",
 };
 

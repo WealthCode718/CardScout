@@ -4,6 +4,7 @@ import { getDealResponse, getValueResponse } from "@/lib/prices";
 import { firstParam, parseSort, parseTab, type ScoutQuery } from "@/lib/query";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export default async function Home({
   searchParams,
@@ -19,7 +20,7 @@ export default async function Home({
   };
 
   const [deals, values, news] = await Promise.all([
-    query.tab === "news" ? Promise.resolve(null) : getDealResponse({ name: query.name, set: query.set }, query.sort),
+    query.tab === "deals" ? getDealResponse({ name: query.name, set: query.set }, query.sort) : Promise.resolve(null),
     query.tab === "values" ? getValueResponse({ name: query.name, set: query.set }) : Promise.resolve(null),
     query.tab === "news" ? getNewsResponse() : Promise.resolve(null),
   ]);

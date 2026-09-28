@@ -1,10 +1,12 @@
 import { SAMPLE_CARDS, FEATURED_CARD_IDS, SET_ORDER, type SampleCard } from "@/lib/prices/demo-data";
 import { matchesText, underMarket } from "@/lib/prices/discount";
-import type { CardValue, DealListing, PriceProvider, PriceQuery } from "@/lib/types";
+import { sampleSources } from "@/lib/prices/sample-sources";
+import type { CardSearchResult, CardValue, DealListing, PriceProvider, PriceQuery } from "@/lib/types";
 
-const DEMO_SOURCE = "Sample estimate";
+const DEMO_SOURCE = "Sample TCGPlayer market";
 
 function toValue(card: SampleCard): CardValue {
+  const sources = sampleSources(card);
   return {
     id: card.id,
     name: card.name,
@@ -19,6 +21,7 @@ function toValue(card: SampleCard): CardValue {
     currency: "USD",
     priceSource: DEMO_SOURCE,
     updatedAt: null,
+    sources,
   };
 }
 
@@ -38,12 +41,13 @@ function toDeal(card: SampleCard): DealListing | null {
     condition: "Near Mint",
     listingPrice: card.ask,
     marketPrice: card.marketPrice,
+    marketLabel: "Sample TCGPlayer market",
     discountPercent: deal.discountPercent,
     savings: deal.savings,
     seller: card.seller,
-    marketplace: "Sample market",
+    marketplace: "Sample shop",
     listingUrl: null,
-    priceSource: DEMO_SOURCE,
+    priceSource: "Practice ask vs sample TCGPlayer market",
     updatedAt: null,
   };
 }
@@ -59,19 +63,21 @@ export class DemoPriceProvider implements PriceProvider {
   readonly label = "Sample prices";
   readonly live = false;
   readonly disclaimer =
-    "Practice mode. These prices are sample estimates shipped with CardScout so you can learn the screens. They are not live shop listings.";
+    "Practice mode. These prices are sample estimates shipped with CardScout so you can learn the screens. Each Values box is marked Practice. They are not live shop listings.";
 
-  async searchCards(query: PriceQuery): Promise<CardValue[]> {
+  async searchCards(query: PriceQuery): Promise<CardSearchResult> {
     const name = query.name?.trim() ?? "";
     const setName = query.set?.trim() ?? "";
     if (!name && !setName) {
-      return FEATURED_CARD_IDS.map((id) => SAMPLE_CARDS.find((card) => card.id === id))
+      const cards = FEATURED_CARD_IDS.map((id) => SAMPLE_CARDS.find((card) => card.id === id))
         .filter((card): card is SampleCard => Boolean(card))
         .map(toValue);
+      return { cards, matchCount: cards.length };
     }
-    return SAMPLE_CARDS.filter((card) => cardMatches(card, query))
+    const cards = SAMPLE_CARDS.filter((card) => cardMatches(card, query))
       .map(toValue)
       .sort((a, b) => (b.marketPrice ?? 0) - (a.marketPrice ?? 0) || a.setName.localeCompare(b.setName));
+    return { cards, matchCount: cards.length };
   }
 
   async listDeals(query: PriceQuery): Promise<DealListing[]> {

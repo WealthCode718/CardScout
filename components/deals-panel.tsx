@@ -14,20 +14,33 @@ export function DealsPanel({ deals }: { deals: DealResponse }) {
           Under market
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Asking price compared with an estimated market price. {deals.deals.length === 0 ? "Nothing matched." : `${deals.deals.length} ${deals.deals.length === 1 ? "card" : "cards"}.`}
+          {deals.fallback
+            ? "Asking price compared with a sample market price."
+            : deals.provider.live
+              ? "Lowest listed price compared with the TCGPlayer market via tcgapi.dev."
+              : "Deals stay empty until TCGAPI_API_KEY is set."}{" "}
+          {deals.deals.length === 0 ? "Nothing matched." : `${deals.deals.length} ${deals.deals.length === 1 ? "card" : "cards"}.`}
         </p>
       </div>
 
       <SourceNote
-        tone={deals.fallback ? "warn" : "calm"}
-        title={deals.fallback ? "Live prices did not load, so these are sample estimates." : deals.provider.disclaimer}
+        tone={deals.fallback || !deals.provider.live ? "warn" : "calm"}
+        title={
+          deals.fallback
+            ? "Live prices did not load. These are practice numbers until the live call works."
+            : deals.provider.disclaimer
+        }
         detail={deals.fallback ? deals.fallbackReason : formatPriceDate(pricedOn) ? `Market figures dated ${formatPriceDate(pricedOn)}.` : undefined}
       />
 
       {deals.deals.length === 0 ? (
         <div className="rounded-2xl bg-panel px-4 py-8 text-center">
-          <p className="font-medium text-paper">No deals in this search</p>
-          <p className="mt-1 text-sm text-muted">Try another set, or clear the name filter.</p>
+          <p className="font-medium text-paper">{deals.provider.live || deals.fallback ? "No deals in this search" : "TCGPlayer market is not configured"}</p>
+          <p className="mt-1 text-sm text-muted">
+            {deals.provider.live || deals.fallback
+              ? "Try another name, or clear the filter. A deal is a list price at least 8% under the TCGPlayer market."
+              : "Add TCGAPI_API_KEY from tcgapi.dev. No market prices are invented."}
+          </p>
         </div>
       ) : (
         <ul className="space-y-2.5">
@@ -54,7 +67,8 @@ export function DealsPanel({ deals }: { deals: DealResponse }) {
                   </p>
                   <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-xl font-semibold text-paper tabular-nums">{formatUsd(deal.listingPrice)}</span>
-                    <span className="text-[12px] text-faint line-through tabular-nums">{formatUsd(deal.marketPrice)} market</span>
+                    <span className="text-[12px] text-faint line-through tabular-nums">{formatUsd(deal.marketPrice)}</span>
+                    <span className="text-[12px] text-faint">{deal.marketLabel}</span>
                     <span className="text-[12px] font-medium text-lime">Save {formatUsd(deal.savings)}</span>
                   </p>
                   <p className="mt-1 text-[12px] text-muted">
