@@ -73,20 +73,22 @@ function RetailerGroup({ group, drops }: { group: DropRetailerGroup; drops: Drop
 }
 
 function summary(group: DropRetailerGroup, drops: DropsResponse): string {
-  if (drops.status === "invalid-zip") return "Check the ZIP";
-  if (drops.status !== "results") return "Links only";
+  if (!group.loaded || drops.status === "invalid-zip" || drops.status !== "results") {
+    return drops.status === "invalid-zip" ? "Check the ZIP" : "Links only";
+  }
   if (group.totalInRadius === 0) return `None within ${drops.radiusMiles} mi`;
   if (group.totalInRadius > group.stores.length) return `${group.stores.length} closest of ${group.totalInRadius}`;
   return `${group.totalInRadius} ${group.totalInRadius === 1 ? "store" : "stores"}`;
 }
 
 function EmptyRetailer({ group, drops }: { group: DropRetailerGroup; drops: DropsResponse }) {
-  const message =
-    drops.status === "results"
-      ? `No ${group.label} stores within ${drops.radiusMiles} miles of ${drops.zip}.`
-      : drops.status === "invalid-zip"
-        ? `Search ${group.label} after you enter a ZIP.`
-        : `${group.label} locations did not load for this ZIP.`;
+  const message = !group.loaded
+    ? `${group.label} locations did not load for this ZIP.`
+    : drops.status === "invalid-zip"
+      ? `Search ${group.label} after you enter a ZIP.`
+      : drops.status !== "results"
+        ? `${group.label} locations did not load for this ZIP.`
+        : `No ${group.label} stores within ${drops.radiusMiles} miles of ${drops.zip}.`;
   return (
     <div className="rounded-2xl bg-panel px-4 py-5 ring-1 ring-white/5">
       <p className="text-sm leading-relaxed text-muted">{message}</p>

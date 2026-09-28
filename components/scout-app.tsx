@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { DealsPanel } from "@/components/deals-panel";
 import { DropsPanel } from "@/components/drops-panel";
+import { DropsResults } from "@/components/drops-results";
 import { DropsSearch } from "@/components/drops-search";
 import { NewsPanel } from "@/components/news-panel";
 import { SearchControls } from "@/components/search-controls";
 import { ValuesPanel } from "@/components/values-panel";
-import { buildHref, type ScoutQuery } from "@/lib/query";
-import type { DealResponse, DropsResponse, NewsResponse, TabId, ValueResponse } from "@/lib/types";
+import { offlineDrops } from "@/lib/drops/links";
+import { DEFAULT_ZIP, buildHref, type ScoutQuery } from "@/lib/query";
+import type { DealResponse, NewsResponse, TabId, ValueResponse } from "@/lib/types";
 
 const TAB_LABELS: { id: TabId; label: string }[] = [
   { id: "deals", label: "Deals" },
@@ -51,13 +53,11 @@ export function ScoutApp({
   deals,
   values,
   news,
-  drops,
 }: {
   query: ScoutQuery;
   deals: DealResponse | null;
   values: ValueResponse | null;
   news: NewsResponse | null;
-  drops: DropsResponse | null;
 }) {
   return (
     <>
@@ -108,8 +108,8 @@ export function ScoutApp({
             zip={query.zip}
             radius={query.radius}
           />
-        ) : query.tab === "drops" && drops ? (
-          <DropsSearch query={{ ...query, zip: drops.zip, radius: drops.radiusMiles }} />
+        ) : query.tab === "drops" ? (
+          <DropsSearch query={{ ...query, zip: query.zip || DEFAULT_ZIP }} />
         ) : (
           <div className="h-2" />
         )}
@@ -117,7 +117,14 @@ export function ScoutApp({
           {query.tab === "deals" && deals ? <DealsPanel deals={deals} /> : null}
           {query.tab === "values" && values ? <ValuesPanel values={values} /> : null}
           {query.tab === "news" && news ? <NewsPanel news={news} /> : null}
-          {query.tab === "drops" && drops ? <DropsPanel drops={drops} /> : null}
+          {query.tab === "drops" ? (
+            <>
+              <DropsResults key={`${query.zip}|${query.radius}`} zip={query.zip} radius={query.radius} />
+              <noscript>
+                <DropsPanel drops={offlineDrops(query.zip, query.radius)} />
+              </noscript>
+            </>
+          ) : null}
         </div>
         <footer className="mt-8 border-t border-white/10 pt-4 text-[11px] leading-relaxed text-faint">
           CardScout is a fan-made price scout for families. It is not affiliated with Nintendo, The Pokémon Company, TPCi,

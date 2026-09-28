@@ -1,7 +1,7 @@
 import { DEFAULT_ZIP, parseRadius, parseZip } from "@/lib/query";
 import type { DropStore, DropsResponse, RetailerId } from "@/lib/types";
 import {
-  STOCK_NOTE,
+  buildDropsResponse,
   buildGroups,
   buildStore,
   classifyRetailer,
@@ -10,9 +10,15 @@ import {
 } from "@/lib/drops/links";
 
 const USER_AGENT = "CardScout/0.1 (Pokemon TCG retail finder; +https://github.com/WealthCode718/CardScout)";
+const RETAILER_WIKIDATA: Record<RetailerId, string> = {
+  target: "Q1046951",
+  walmart: "Q483551",
+  gamestop: "Q202210",
+};
+const RETAILER_ORDER: RetailerId[] = ["target", "walmart", "gamestop"];
 const STORE_LIMIT = 8;
 const SUCCESS_TTL_MS = 6 * 60 * 60 * 1000;
-const FAILURE_TTL_MS = 10 * 60 * 1000;
+const FAILURE_TTL_MS = 60 * 1000;
 
 interface GeoPoint {
   lat: number;
@@ -40,10 +46,6 @@ function remember(key: string, body: DropsResponse, ttlMs: number): DropsRespons
   return body;
 }
 
-function emptyGroups(zip: string | null) {
-  return buildGroups([], zip, STORE_LIMIT);
-}
-
 function response(input: {
   zip: string;
   radiusMiles: number;
@@ -52,15 +54,10 @@ function response(input: {
   sourceNote: string;
   groups?: DropsResponse["groups"];
 }): DropsResponse {
-  return {
-    zip: input.zip,
-    radiusMiles: input.radiusMiles,
-    placeLabel: input.placeLabel,
-    status: input.status,
-    sourceNote: input.sourceNote,
-    stockNote: STOCK_NOTE,
-    groups: input.groups ?? emptyGroups(input.status === "invalid-zip" ? null : input.zip),
-  };
+  return buildDropsResponse({
+    ...input,
+    groups: input.groups ?? buildGroups([], input.status === "invalid-zip" ? null : input.zip, STORE_LIMIT),
+  });
 }
 
 async function fetchJson(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
@@ -123,13 +120,13 @@ async function geocodeZippopotam(zip: string): Promise<GeoPoint | null> {
 
 async function geocodeZip(zip: string): Promise<GeoPoint | null> {
   try {
-    const point = await geocodeNominatim(zip);
+    const point = await geocodeZippopotam(zip);
     if (point) return point;
   } catch {
-    // Nominatim can rate-limit. Zippopotam is the backup for US ZIP centroids.
+    // Zippopotam is a small US ZIP centroid service. Nominatim is the backup.
   }
   try {
-    return await geocodeZippopotam(zip);
+    return await geocodeNominatim(zip);
   } catch {
     return null;
   }
@@ -142,20 +139,24 @@ function elementPoint(element: OverpassElement): { lat: number; lon: number } | 
   return { lat, lon };
 }
 
-async function queryOverpass(lat: number, lon: number, radiusMiles: number): Promise<OverpassElement[]> {
+function canRetry(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "TimeoutError" || error.name === "AbortError" || error.name === "TypeError") return true;
+  return /^HTTP (429|5\d\d)$/.test(error.message);
+}
+
+async function queryRetailer(
+  lat: number,
+  lon: number,
+  radiusMiles: number,
+  wikidata: string,
+): Promise<OverpassElement[] | null> {
   const meters = Math.round(radiusMiles * 1609.344);
   const around = `around:${meters},${lat.toFixed(6)},${lon.toFixed(6)}`;
-  const query = `[out:json][timeout:18];
-(
-  nwr["brand:wikidata"~"Q1046951|Q483551|Q202210"](${around});
-  nwr["brand"="Target"]["shop"](${around});
-  nwr["brand"="Walmart"]["shop"](${around});
-  nwr["brand"="GameStop"]["shop"](${around});
-);
-out center tags;`;
-  const endpoints = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
-  let lastError: unknown;
-  for (const [index, endpoint] of endpoints.entries()) {
+  // One chain per request. A combined query is more likely to time out on the public Overpass server.
+  const query = `[out:json][timeout:12];(nwr["brand:wikidata"="${wikidata}"](${around}););out center tags;`;
+  const endpoint = "https://overpass-api.de/api/interpreter";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const payload = await fetchJson(
         endpoint,
@@ -168,17 +169,15 @@ out center tags;`;
           },
           body: new URLSearchParams({ data: query }),
         },
-        index === 0 ? 12000 : 8000,
+        12000,
       );
-      if (!isRecord(payload) || !Array.isArray(payload.elements)) throw new Error("Unexpected Overpass payload");
+      if (!isRecord(payload) || !Array.isArray(payload.elements)) return null;
       return payload.elements.filter(isRecord) as OverpassElement[];
     } catch (error) {
-      lastError = error;
-      const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-      if (timedOut) break;
+      if (!canRetry(error) || attempt === 1) return null;
     }
   }
-  throw lastError instanceof Error ? lastError : new Error("Overpass failed");
+  return null;
 }
 
 function stringTags(tags: Record<string, string> | undefined): Record<string, string> | null {
@@ -241,22 +240,18 @@ async function loadDrops(zip: string, radiusMiles: number): Promise<DropsRespons
     );
   }
 
-  try {
-    const elements = await queryOverpass(origin.lat, origin.lon, radiusMiles);
-    const groups = buildGroups(storesFromElements(elements, origin, zip, radiusMiles), zip, STORE_LIMIT);
-    return remember(
-      key,
-      response({
-        zip,
-        radiusMiles,
-        placeLabel: origin.placeLabel,
-        status: "results",
-        sourceNote: "Store locations come from OpenStreetMap contributors. This is not live aisle inventory.",
-        groups,
-      }),
-      SUCCESS_TTL_MS,
-    );
-  } catch {
+  const stores: DropStore[] = [];
+  const failed = new Set<RetailerId>();
+  for (const retailer of RETAILER_ORDER) {
+    const elements = await queryRetailer(origin.lat, origin.lon, radiusMiles, RETAILER_WIKIDATA[retailer]);
+    if (!elements) {
+      failed.add(retailer);
+      continue;
+    }
+    stores.push(...storesFromElements(elements, origin, zip, radiusMiles));
+  }
+
+  if (failed.size === RETAILER_ORDER.length) {
     return remember(
       key,
       response({
@@ -269,6 +264,22 @@ async function loadDrops(zip: string, radiusMiles: number): Promise<DropsRespons
       FAILURE_TTL_MS,
     );
   }
+
+  const groups = buildGroups(stores, zip, STORE_LIMIT).map((group) =>
+    failed.has(group.id) ? { ...group, stores: [], totalInRadius: 0, loaded: false } : group,
+  );
+  return remember(
+    key,
+    response({
+      zip,
+      radiusMiles,
+      placeLabel: origin.placeLabel,
+      status: "results",
+      sourceNote: "Store locations come from OpenStreetMap contributors. This is not live aisle inventory.",
+      groups,
+    }),
+    failed.size === 0 ? SUCCESS_TTL_MS : 2 * 60 * 1000,
+  );
 }
 
 export async function getDropsResponse(input?: { zip?: string; radius?: string }): Promise<DropsResponse> {

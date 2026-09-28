@@ -1,4 +1,5 @@
-import type { DropRetailerGroup, DropStore, RetailerId } from "@/lib/types";
+import { DEFAULT_ZIP, parseZip } from "@/lib/query";
+import type { DropRetailerGroup, DropStore, DropsResponse, DropsStatus, RetailerId } from "@/lib/types";
 
 export const STOCK_NOTE = "Stock changes fast — confirm in the retailer app or at the store.";
 
@@ -242,6 +243,48 @@ export function buildStore(input: {
   };
 }
 
+export function buildDropsResponse(input: {
+  zip: string;
+  radiusMiles: number;
+  placeLabel: string | null;
+  status: DropsStatus;
+  sourceNote: string;
+  groups?: DropRetailerGroup[];
+}): DropsResponse {
+  const linkZip = input.status === "invalid-zip" ? null : input.zip;
+  return {
+    zip: input.zip,
+    radiusMiles: input.radiusMiles,
+    placeLabel: input.placeLabel,
+    status: input.status,
+    sourceNote: input.sourceNote,
+    stockNote: STOCK_NOTE,
+    groups: input.groups ?? buildGroups([], linkZip, 8).map((group) => ({ ...group, loaded: false })),
+  };
+}
+
+/** Used when the browser cannot reach the lookup. Same links as a failed search. */
+export function offlineDrops(rawZip: string, radiusMiles: number): DropsResponse {
+  const trimmed = rawZip.trim();
+  const zip = parseZip(trimmed);
+  if (trimmed && !zip) {
+    return buildDropsResponse({
+      zip: trimmed.slice(0, 10),
+      radiusMiles,
+      placeLabel: null,
+      status: "invalid-zip",
+      sourceNote: `Enter a 5-digit US ZIP code, like ${DEFAULT_ZIP}.`,
+    });
+  }
+  return buildDropsResponse({
+    zip: zip || DEFAULT_ZIP,
+    radiusMiles,
+    placeLabel: null,
+    status: "unavailable",
+    sourceNote: "Nearby stores did not load. The links below open each retailer’s store finder and Pokémon search.",
+  });
+}
+
 export function buildGroups(stores: DropStore[], zip: string | null, limit: number): DropRetailerGroup[] {
   return RETAILERS.map((retailer) => {
     const matched = stores
@@ -252,6 +295,7 @@ export function buildGroups(stores: DropStore[], zip: string | null, limit: numb
       label: retailer.label,
       stores: matched.slice(0, limit),
       totalInRadius: matched.length,
+      loaded: true,
       finderUrl: finderUrl(retailer.id, zip),
       stockUrl: productSearch(retailer.id),
     };

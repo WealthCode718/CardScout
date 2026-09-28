@@ -1,5 +1,4 @@
 import { ScoutApp } from "@/components/scout-app";
-import { getDropsResponse } from "@/lib/drops";
 import { getNewsResponse } from "@/lib/news";
 import { getDealResponse, getValueResponse } from "@/lib/prices";
 import { firstParam, parseRadius, parseSort, parseTab, type ScoutQuery } from "@/lib/query";
@@ -22,12 +21,11 @@ export default async function Home({
     radius: parseRadius(firstParam(params.radius)),
   };
 
-  const [deals, values, news, drops] = await Promise.all([
+  const [deals, values, news] = await Promise.all([
     query.tab === "deals" ? getDealResponse({ name: query.name, set: query.set }, query.sort) : Promise.resolve(null),
     query.tab === "values" ? getValueResponse({ name: query.name, set: query.set }) : Promise.resolve(null),
     query.tab === "news" ? getNewsResponse() : Promise.resolve(null),
-    query.tab === "drops" ? getDropsResponse({ zip: query.zip, radius: String(query.radius) }) : Promise.resolve(null),
   ]);
 
-  return <ScoutApp query={query} deals={deals} values={values} news={news} drops={drops} />;
+  return <ScoutApp query={query} deals={deals} values={values} news={news} />;
 }

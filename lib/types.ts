@@ -189,6 +189,8 @@ export interface DropRetailerGroup {
   label: string;
   stores: DropStore[];
   totalInRadius: number;
+  /** False when that chain’s map search did not finish. Links are still usable. */
+  loaded: boolean;
   finderUrl: string;
   stockUrl: string;
 }

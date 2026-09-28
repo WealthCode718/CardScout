@@ -77,13 +77,13 @@ Each store shows the name, address, and distance, plus:
 
 Walmart’s stock link includes the store number when the map has one, so Walmart can open that store’s search. CardScout still does not know what is on the shelf. Stock changes fast. Confirm in the retailer app or at the store.
 
-Locations come from [OpenStreetMap](https://www.openstreetmap.org/copyright) through the public Overpass API. The ZIP is located with [Nominatim](https://nominatim.org/). If Nominatim is unavailable, CardScout uses [Zippopotam](https://api.zippopotam.us/) for the ZIP center. No API key is required. If the map search does not load, the screen still links to each retailer’s store finder and Pokémon search.
+Store locations come from [OpenStreetMap](https://www.openstreetmap.org/copyright) through the public Overpass API, one chain at a time. The ZIP center comes from [Zippopotam](https://api.zippopotam.us/). If that is unavailable, CardScout uses [Nominatim](https://nominatim.org/). No API key is required. The first lookup for a ZIP can take a little while, then CardScout remembers it. If a chain’s map search does not load, that group still links to the store finder and Pokémon search.
 
 ## Where the numbers come from
 
 CardScout always asks the live sources first. The header says **Live prices on** when that call works. Practice numbers are an emergency fallback only, and the header then says **Practice fallback**.
 
-Card names and pictures are there so you can tell printings apart. CardScout is not affiliated with Nintendo, The Pokémon Company, TPCi, eBay, TCGPlayer, or PriceCharting.
+Card names and pictures are there so you can tell printings apart. CardScout is not affiliated with Nintendo, The Pokémon Company, TPCi, eBay, TCGPlayer, PriceCharting, Target, Walmart, or GameStop.
 
 | Source | What you get | Key |
 | --- | --- | --- |
